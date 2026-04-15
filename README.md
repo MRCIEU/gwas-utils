@@ -2,7 +2,7 @@
 
 Command-line utilities to do GWAS-related things
 
-## Constitient programs
+## Constituent programs
 
 `regenie_concat_output_files` - Concatenates multiple Regenie output files into a single file
 
@@ -12,7 +12,7 @@ Command-line utilities to do GWAS-related things
 
 You will need to [install Rust](https://www.rust-lang.org/tools/install) first.
 
-Then you should be able to install distance by running:
+Then you should be able to install gwas-utils by running:
 
 ```
 cargo install --git https://github.com/mrcieu/gwas-utils
