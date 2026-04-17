@@ -1,8 +1,9 @@
-use std::error::Error;
-use std::io::{Read, Write};
-
+use flate2::Compression;
 use flate2::read::GzDecoder;
 use flate2::write::GzEncoder;
+use std::error::Error;
+use std::fs::File;
+use std::io::{Read, Write};
 
 pub enum Reader {
     File(std::fs::File),
@@ -19,7 +20,7 @@ impl Read for Reader {
 }
 
 pub fn open_reader(filename: &str) -> Result<Reader, Box<dyn Error>> {
-    let f = std::fs::File::open(filename)?;
+    let f = File::open(filename)?;
     if filename.ends_with(".gz") {
         let gz = GzDecoder::new(f);
         Ok(Reader::GzFile(gz))
@@ -50,9 +51,9 @@ impl Write for Writer {
 }
 
 pub fn open_writer(filename: &str) -> Result<Writer, Box<dyn Error>> {
-    let f = std::fs::File::create(filename)?;
+    let f = File::create(filename)?;
     if filename.ends_with(".gz") {
-        let gz = GzEncoder::new(f, flate2::Compression::default());
+        let gz = GzEncoder::new(f, Compression::default());
         Ok(Writer::GzFile(gz))
     } else {
         Ok(Writer::File(f))
