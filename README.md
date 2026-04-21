@@ -41,11 +41,7 @@ and the binaries get built in the repo's directory:
 ```
 ❯ ls target/release
 ...
-<<<<<<< HEAD
 ... csv_select_columns ... csv_concat_files ... dnanexus_make_dxfuse_manifest ... regenie_add_pval_col ...
-=======
-dnanexus_make_dxfuse_manifest ... regenie_add_pval_col ... regenie_concat_output_files ...
->>>>>>> main
 ```
 
 ### Cross-compilation
