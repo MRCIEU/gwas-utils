@@ -12,6 +12,8 @@ Command-line utilities to do GWAS-related things
 
 `regenie_add_pval_col` - Add a P column to a Regenie output file based on the LOG10P column
 
+`dnanexus_make_dxfuse_manifest` - Convert a list of dnanexus file identifiers into a dxfuse manifest file
+
 ## Installation
 
 You will need to [install Rust](https://www.rust-lang.org/tools/install) first.
@@ -41,7 +43,11 @@ and the binaries get built in the repo's directory:
 ```
 ❯ ls target/release
 ...
+<<<<<<< HEAD
 ... csv_select_columns ... csv_concat_files ... dnanexus_make_dxfuse_manifest ... regenie_add_pval_col ...
+=======
+dnanexus_make_dxfuse_manifest ... regenie_add_pval_col ... regenie_concat_output_files ...
+>>>>>>> main
 ```
 
 ### Cross-compilation
@@ -110,4 +116,18 @@ Options:
   -o, --output <OUTPUT>  Output file to write with added p-value column (will be gzipped if filename ends with .gz)
   -h, --help             Print help (see more with '--help')
   -V, --version          Print version
+```
+
+```
+❯ dnanexus_make_dxfuse_manifest -h
+Convert a list of dnanexus file identifiers into a dxfuse manifest file. File identifiers are extracted by regex: file-[a-zA-Z0-9]{24}.
+
+Usage: dnanexus_make_dxfuse_manifest -f <"file-xxxx" "file-yyyy" ...> -p ${DX_PROJECT_CONTEXT_ID} -o manifest.json
+
+Options:
+  -f, --fileids <FILEIDS>...   A list of dnanexus file identifiers (file-xxxx, {$dnanexus_link: file-yyyy}, etc.) to include in the manifest
+  -p, --projectid <PROJECTID>  The ID of the dnanexus project containing the files
+  -o, --output <OUTPUT>        The name of the output file to write the manifest to
+  -h, --help                   Print help
+  -V, --version                Print version
 ```
