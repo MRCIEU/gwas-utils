@@ -161,11 +161,7 @@ dependencies = [
 
 [[package]]
 name = "gwas-utilities"
-<<<<<<< HEAD
 version = "0.3.0"
-=======
-version = "0.2.0"
->>>>>>> main
 dependencies = [
  "clap",
  "csv",
