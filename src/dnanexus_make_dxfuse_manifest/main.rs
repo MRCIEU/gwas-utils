@@ -33,32 +33,32 @@ fn main() {
 }
 
 fn run() -> Result<(), Box<dyn Error>> {
-    let (ifilestrings, projectid, file_wtr) = handle_commandline_args()?;
-    process_strings(ifilestrings, projectid, file_wtr)?;
+    let (raw_strings, project_id, file_wtr) = handle_commandline_args()?;
+    process_strings(raw_strings, project_id, file_wtr)?;
     Ok(())
 }
 
 fn handle_commandline_args() -> Result<(Vec<String>, String, BufWriter<File>), Box<dyn Error>> {
     let args = Args::parse();
     let wtr = BufWriter::new(File::create(&args.output)?);
-    Ok((args.fileids, args.projectid,wtr))
+    Ok((args.fileids, args.projectid, wtr))
 }
 
-fn process_strings<W>(file_id_strings: Vec<String>, project_id: String, mut wtr: W) -> Result<(), Box<dyn Error>>
+fn process_strings<W>(raw_strings: Vec<String>, project_id: String, mut wtr: W) -> Result<(), Box<dyn Error>>
 where
     W: std::io::Write,
 {
     let re = Regex::new(r"file-[a-zA-Z0-9]{24}")?;
 
-    let filestrings = file_id_strings
+    let file_ids = raw_strings
         .iter()
         .filter_map(|s| re.find(s).map(|m| m.as_str()))
         .collect::<Vec<_>>();
 
     let json = json!({
-        "Files": filestrings.iter().map(|fid| {
+        "Files": file_ids.iter().map(|file_id| {
             json!({
-                "file_id": fid,
+                "file_id": file_id,
                 "proj_id": project_id,
                 "parent": "/"
             })
@@ -77,38 +77,38 @@ mod tests {
     use super::*;
 
     #[test]
-    fn write_manifest() {
+    fn test_write_manifest() {
         let project_id = "project-xxxx".to_string();
 
-        let file_input = vec![
-            "'{\"$dnanexus_link\": \"file-FxY5660JkF6BB3Jq9680pjqX\"}'".to_string(),
-            "'{\"$dnanexus_link\": \"file-J5Q57p8JX3J2JBJ6fPqfq4bP\"}'".to_string(),
-            "'{\"$dnanexus_link\": \"file-FxZ2bzQJkF69vjv312xj70jZ\"}'".to_string(),
-            "'{\"$dnanexus_link\": \"file-J7QJgf0J0z3qjjkBBxV25VBQ\"}'".to_string(),
+        let raw_string_input = vec![
+            "'{\"$dnanexus_link\": \"file-FxY5660JkF6BB3Jq9680pjq5\"}'".to_string(),
+            "'{\"$dnanexus_link\": \"file-J5Q57p8JX3J2JBJ6fPqfq4bO\"}'".to_string(),
+            "'{\"$dnanexus_link\": \"file-FxZ2bzQJkF69vjv312xj70jt\"}'".to_string(),
+            "'{\"$dnanexus_link\": \"file-J7QJgf0J0z3qjjkBBxV25VBv\"}'".to_string(),
         ];
 
         let mut wtr = std::io::Cursor::new(Vec::new());
-        process_strings(file_input, project_id, &mut wtr).unwrap();
+        process_strings(raw_string_input, project_id, &mut wtr).unwrap();
 
         let desired_result_str = r#"{
   "Files": [
     {
-      "file_id": "file-FxY5660JkF6BB3Jq9680pjqX",
+      "file_id": "file-FxY5660JkF6BB3Jq9680pjq5",
       "proj_id": "project-xxxx",
       "parent": "/"
     },
     {
-      "file_id": "file-J5Q57p8JX3J2JBJ6fPqfq4bP",
+      "file_id": "file-J5Q57p8JX3J2JBJ6fPqfq4bO",
       "proj_id": "project-xxxx",
       "parent": "/"
     },
     {
-      "file_id": "file-FxZ2bzQJkF69vjv312xj70jZ",
+      "file_id": "file-FxZ2bzQJkF69vjv312xj70jt",
       "proj_id": "project-xxxx",
       "parent": "/"
     },
     {
-      "file_id": "file-J7QJgf0J0z3qjjkBBxV25VBQ",
+      "file_id": "file-J7QJgf0J0z3qjjkBBxV25VBv",
       "proj_id": "project-xxxx",
       "parent": "/"
     }

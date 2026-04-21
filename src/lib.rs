@@ -59,3 +59,15 @@ pub fn open_writer(filename: &str) -> Result<Writer, Box<dyn Error>> {
         Ok(Writer::File(f))
     }
 }
+
+pub fn get_delimeter(sep: &str) -> Result<char, Box<dyn Error>> {
+    let c = match sep {
+        "\\t" => '\t',
+        s if s.chars().count() == 1 => s.chars().next().unwrap(),
+        _ => return Err("Delimiter must be a single ASCII character".into()),
+    };
+    if !c.is_ascii() {
+        return Err("Delimiter must be a single ASCII character".into());
+    }
+    Ok(c)
+}

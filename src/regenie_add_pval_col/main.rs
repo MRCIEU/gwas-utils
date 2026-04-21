@@ -8,7 +8,7 @@ use gwas_utilities::{open_reader, open_writer};
 const USAGE: &str = "regenie_add_pval_col -i infile.regenie[.gz] -o outfile.regenie[.gz]";
 
 #[derive(Parser, Debug)]
-#[command(version, override_usage = USAGE, about = "Adds a P column to a Regenie output file based on the LOG10P column. The P column is added as the last column in the file. If the LOG10P value is large enough that the corresponding P value would be smaller than the smallest positive normal number representable in f64, then the P value is set to that smallest positive normal number (f64::MIN_POSITIVE) to avoid underflow issues when converting back and forth between log10(P) and P.")]
+#[command(version, override_usage = USAGE, about = "Add a P column to a Regenie output file based on the LOG10P column. The P column is added as the last column in the file. If the LOG10P value is large enough that the corresponding P value would be smaller than the smallest positive normal number representable in f64, then the P value is set to that smallest positive normal number (f64::MIN_POSITIVE) to avoid underflow issues when converting back and forth between log10(P) and P.")]
 struct Args {
     /// Regenie output file to process (can be gzipped if filename ends with .gz)
     #[arg(short, long)]
@@ -99,14 +99,14 @@ mod tests {
     use super::*;
 
     #[test]
-    fn precision() {
+    fn test_precision() {
         let log10_p = 1000.0;
         let p = get_p_from_log10_p(log10_p);
         assert_eq!(p, f64::MIN_POSITIVE);
     }
 
     #[test]
-    fn p_value() {
+    fn test_get_p_value() {
         let mut log10_p = 1.0;
         let mut p = get_p_from_log10_p(log10_p);
         assert_eq!(p, 0.1);
@@ -117,7 +117,7 @@ mod tests {
     }
 
     #[test]
-    fn add_p_to_file() {
+    fn test_add_p_to_file() {
         let file_rdr = open_reader("testdata/small.concat.regenie").unwrap();
         let mut wtr = Cursor::new(Vec::new());
         process_file(file_rdr, &mut wtr).unwrap();
