@@ -62,30 +62,30 @@ cargo build --release --target x86_64-unknown-linux-musl
 
 ```
 ❯ csv_concat_files -h
-Concatenate multiple CSV output files into a single file...
+Concatenate multiple CSV output files into a single file. The input files must have the same header line. The output file will contain the header followed by all the records from the input files
 
-Usage: csv_concat_files -i <infile1.regenie[.gz] infile2.regenie[.gz] ...> -o outfile.regenie[.gz]
+Usage: csv_concat_files -i <infile1.csv[.gz] infile2.csv[.gz] ...> -d " " -o outfile.csv[.gz]
 
 Options:
-  -i, --input <INPUT> <INPUT>...     CSV output files to concatenate (can be gzipped if filename ends with .gz)
-  -d, --delim <DELIM>                Delimiter for CSV file reading and writing (default is tab, use " " for space, etc.) [default: \t]
-  -o, --output <OUTPUT>              Concatenated CSV file to write (will be gzipped if filename ends with .gz)
-  -h, --help                         Print help
-  -V, --version                      Print version
+  -i, --input <INPUT>...  CSV files to concatenate (can be gzipped if filenames end with .gz)
+  -d, --delim <DELIM>     Delimiter for CSV file reading and writing (default is tab, use " " for space, etc.) [default: \t]
+  -o, --output <OUTPUT>   Concatenated CSV file to write (will be gzipped if filename ends with .gz)
+  -h, --help              Print help
+  -V, --version           Print version
 ```
 
 ```
 ❯ csv_filter_rows -h
-Filter rows from a CSV file based on a specified expression.
+Filter rows from a CSV file based on column-specific expressions
 
-Usage: csv_filter_rows -i infile.csv -e 'column1 == value' -e 'column2 > 5' ... -d " " -o filtered.csv
+Usage: csv_filter_rows -i infile.csv[.gz] -e 'sex == male' -e 'age > 5' ... -d "," -o filtered.csv[.gz]
 
 Options:
-  -i, --input <INPUT>               Input CSV file to process (can be gzipped if filename ends with .gz)
-  -e, --expression <EXPRESSION>...  Expression(s) to filter rows ["==", "!=", ">=", "<=", ">", "<"]
-      --any                         Any expression must be true for a row to be included instead of all expressions needing to be true (the default)
+  -i, --input <INPUT>               Input CSV file (can be gzipped if filename ends with .gz)
+  -e, --expression <EXPRESSION>...  Expression(s) to filter rows, in the format "COLUMN-NAME OPERATOR VALUE". Possible operators are: "==", "!=", ">=", "<=", ">", "<". Rows evaluating to true will be included in the output. Multiple expressions will be combined with AND logic by default (use --any for OR logic)
+      --any                         Rows will be included in the output if any expression is true (default is to include rows only if all expressions are true)
   -d, --delim <DELIM>               Delimiter for CSV file reading and writing (default is tab, use " " for space, etc.) [default: \t]
-  -o, --output <OUTPUT>             Output CSV file to write with rows that pass the filter(s) (will be gzipped if filename ends with .gz)
+  -o, --output <OUTPUT>             Filtered CSV file to write (will be gzipped if filename ends with .gz)
   -h, --help                        Print help
   -V, --version                     Print version
 ```
@@ -112,7 +112,7 @@ Split a CSV file into multiple files based on unique values in a specified categ
 Usage: csv_split_on_categorical_column -i infile.csv[.gz] -d " " -c colname
 
 Options:
-  -i, --input <INPUT>    Input CSV file to process (can be gzipped if filename ends with .gz)
+  -i, --input <INPUT>    Input CSV file (can be gzipped if filename ends with .gz)
   -c, --column <COLUMN>  Categorical column name to split on
   -d, --delim <DELIM>    Delimiter for CSV file reading and writing (default is tab, use " " for space, etc.) [default: \t]
   -h, --help             Print help
@@ -128,20 +128,20 @@ Usage: dnanexus_make_dxfuse_manifest -f <"file-xxxx" "file-yyyy" ...> -p ${DX_PR
 Options:
   -f, --fileids <FILEIDS>...   A list of dnanexus file identifiers (file-xxxx, {$dnanexus_link: file-yyyy}, etc.) to include in the manifest
   -p, --projectid <PROJECTID>  The ID of the dnanexus project containing the files
-  -o, --output <OUTPUT>        The name of the output file to write the manifest to
+  -o, --output <OUTPUT>        JSON file to write the manifest to
   -h, --help                   Print help
   -V, --version                Print version
 ```
 
 ```
 ❯ regenie_add_pval_col -h
-Add a P column to a Regenie output file based on the LOG10P column...
+Add a P column to a Regenie output file based on the LOG10P column. If the LOG10P value is large enough that the corresponding P value would be zero, then the P value is set to f64::MIN_POSITIVE
 
 Usage: regenie_add_pval_col -i infile.regenie[.gz] -o outfile.regenie[.gz]
 
 Options:
-  -i, --input <INPUT>    Regenie output file to process (can be gzipped if filename ends with .gz)
+  -i, --input <INPUT>    Regenie file to process (can be gzipped if filename ends with .gz)
   -o, --output <OUTPUT>  Output file to write with added p-value column (will be gzipped if filename ends with .gz)
-  -h, --help             Print help (see more with '--help')
+  -h, --help             Print help
   -V, --version          Print version
 ```
