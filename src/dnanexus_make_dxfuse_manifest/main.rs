@@ -3,6 +3,7 @@ use regex::Regex;
 use serde_json::json;
 use std::error::Error;
 use std::fs::File;
+use std::io;
 use std::io::BufWriter;
 use std::process;
 
@@ -11,15 +12,15 @@ const USAGE: &str = "dnanexus_make_dxfuse_manifest -f <\"file-xxxx\" \"file-yyyy
 #[derive(Parser, Debug)]
 #[command(version, override_usage = USAGE, about = "Convert a list of dnanexus file identifiers into a dxfuse manifest file. File identifiers are extracted by regex: file-[a-zA-Z0-9]{24}.")]
 struct Args {
-    /// A list of dnanexus file identifiers (file-xxxx, {$dnanexus_link: file-yyyy}, etc.) to include in the manifest.
+    /// A list of dnanexus file identifiers (file-xxxx, {$dnanexus_link: file-yyyy}, etc.) to include in the manifest
     #[arg(short, long, num_args = 1..)]
     fileids: Vec<String>,
 
-    /// The ID of the dnanexus project containing the files.
+    /// The ID of the dnanexus project containing the files
     #[arg(short, long)]
     projectid: String,
 
-    /// The name of the output file to write the manifest to.
+    /// JSON file to write the manifest to
     #[arg(short, long)]
     output: String,
 }
@@ -46,7 +47,7 @@ fn handle_commandline_args() -> Result<(Vec<String>, String, BufWriter<File>), B
 
 fn process_strings<W>(raw_strings: Vec<String>, project_id: String, mut wtr: W) -> Result<(), Box<dyn Error>>
 where
-    W: std::io::Write,
+    W: io::Write,
 {
     let re = Regex::new(r"file-[a-zA-Z0-9]{24}")?;
 

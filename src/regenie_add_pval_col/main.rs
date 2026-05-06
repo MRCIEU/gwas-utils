@@ -8,9 +8,9 @@ use gwas_utilities::{open_reader, open_writer};
 const USAGE: &str = "regenie_add_pval_col -i infile.regenie[.gz] -o outfile.regenie[.gz]";
 
 #[derive(Parser, Debug)]
-#[command(version, override_usage = USAGE, about = "Add a P column to a Regenie output file based on the LOG10P column. The P column is added as the last column in the file. If the LOG10P value is large enough that the corresponding P value would be smaller than the smallest positive normal number representable in f64, then the P value is set to that smallest positive normal number (f64::MIN_POSITIVE) to avoid underflow issues when converting back and forth between log10(P) and P.")]
+#[command(version, override_usage = USAGE, about = "Add a P column to a Regenie output file based on the LOG10P column. If the LOG10P value is large enough that the corresponding P value would be zero, then the P value is set to f64::MIN_POSITIVE")]
 struct Args {
-    /// Regenie output file to process (can be gzipped if filename ends with .gz)
+    /// Regenie file to process (can be gzipped if filename ends with .gz)
     #[arg(short, long)]
     input: String,
 
@@ -51,17 +51,11 @@ where
         .from_reader(rdr);
 
     let mut header = csv_rdr.headers()?.clone();
-    let (mut log10_p_col_idx, mut log10_p_col_found) = (0, false);
-    for (i, val) in header.iter().enumerate() {
-        if val == "LOG10P" {
-            log10_p_col_idx = i;
-            log10_p_col_found = true;
-            break;
-        }
-    }
-    if !log10_p_col_found {
-        return Err("couldn't find LOG10P column in file header".into());
-    }
+    
+    let log10_p_col_idx = header
+        .iter()
+        .position(|h| h == "LOG10P")
+        .ok_or("Couldn't find LOG10P column in file header")?;
 
     header.push_field("P");
 

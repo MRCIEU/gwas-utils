@@ -1,6 +1,7 @@
 use clap::Parser;
 use csv::StringRecord;
 use std::error::Error;
+use std::io;
 use std::process;
 
 use gwas_utilities::{get_delimeter, open_reader, open_writer};
@@ -8,9 +9,9 @@ use gwas_utilities::{get_delimeter, open_reader, open_writer};
 const USAGE: &str = "csv_concat_files -i <infile1.csv[.gz] infile2.csv[.gz] ...> -d \" \" -o outfile.csv[.gz]";
 
 #[derive(Parser, Debug)]
-#[command(version, override_usage = USAGE, about = "Concatenate multiple CSV output files into a single file. The input files must have the same header line (the first line of the file), and the output file will contain that header line followed by all the records from the input files. The input files can be gzipped if their filenames end with .gz, and the output file will be gzipped if its filename ends with .gz.")]
+#[command(version, override_usage = USAGE, about = "Concatenate multiple CSV output files into a single file. The input files must have the same header line. The output file will contain the header followed by all the records from the input files")]
 struct Args {
-    /// CSV output files to concatenate (can be gzipped if filename ends with .gz)
+    /// CSV files to concatenate (can be gzipped if filenames end with .gz)
     #[arg(short, long, num_args = 1..)]
     input: Vec<String>,
 
@@ -46,7 +47,7 @@ fn handle_commandline_args() -> Result<(Vec<String>, gwas_utilities::Writer, cha
 
 fn process_files<W>(ifilenames: Vec<String>, wtr: W, sep: char) -> Result<(), Box<dyn Error>>
 where
-    W: std::io::Write,
+    W: io::Write,
 {
     let mut csv_wtr = csv::WriterBuilder::new().delimiter(sep as u8).from_writer(wtr);
 
@@ -64,7 +65,7 @@ where
         } else {
             let header = rdr.headers()?.clone();
             if header != index_header {
-                return Err("mismatched headers in input files".into());
+                return Err("Mismatched headers in input files".into());
             }
         }
         for result in rdr.records() {

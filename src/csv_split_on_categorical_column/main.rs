@@ -1,0 +1,105 @@
+use clap::Parser;
+use std::collections::HashMap;
+use std::error::Error;
+use std::io;
+use std::process;
+
+use gwas_utilities::{get_delimeter, open_reader, open_writer};
+
+const USAGE: &str = "csv_split_on_categorical_column -i infile.csv[.gz] -d \" \" -c colname";
+
+#[derive(Parser, Debug)]
+#[command(version, override_usage = USAGE, about = "Split a CSV file into multiple files based on unique values in a specified categorical column.")]
+struct Args {
+    /// Input CSV file (can be gzipped if filename ends with .gz)
+    #[arg(short, long)]
+    input: String,
+
+    /// Categorical column name to split on
+    #[arg(short, long)]
+    column: String,
+
+    /// Delimiter for CSV file reading and writing (default is tab, use " " for space, etc.)
+    #[arg(short, long, default_value = "\\t")]
+    delim: String,
+}
+
+fn main() {
+    if let Err(err) = run() {
+        println!("Error: {}", err);
+        println!("Usage: {}", USAGE);
+        process::exit(1);
+    }
+}
+
+fn run() -> Result<(), Box<dyn Error>> {
+    let (input_file, column_to_split_on, sep) = handle_commandline_args()?;
+    let file_rdr = open_reader(&input_file)?;
+    process_file(file_rdr, column_to_split_on, sep)?;
+    Ok(())
+}
+
+fn handle_commandline_args()
+-> Result<(String, String, char), Box<dyn Error>> {
+    let args = Args::parse();
+    let sep = get_delimeter(&args.delim)?;
+    Ok((args.input, args.column, sep))
+}
+
+fn process_file<R>(rdr: R, column_to_split_on: String, sep: char) -> Result<(), Box<dyn Error>>
+where
+    R: io::Read,
+{
+    let mut csv_rdr = csv::ReaderBuilder::new()
+        .has_headers(true)
+        .delimiter(sep as u8)
+        .from_reader(rdr);
+
+    let header = csv_rdr.headers()?.clone();
+    let column_index = header
+        .iter()
+        .position(|h| h == column_to_split_on)
+        .ok_or(format!("Column '{}' not found in CSV headers", column_to_split_on))?;
+
+    let mut file_handles: HashMap<String, csv::Writer<gwas_utilities::Writer>> = HashMap::new();
+    for result in csv_rdr.records() {
+        let record = result?;
+        if let Some(value) = record.get(column_index) {
+            if file_handles.contains_key(value) {
+                let csv_wtr = file_handles.get_mut(value).unwrap();
+                csv_wtr.write_record(&record)?;
+            } else {
+                let file_handle = format!("{}_{}.csv", column_to_split_on, value);
+                let mut csv_wtr = csv::WriterBuilder::new()
+                    .delimiter(sep as u8)
+                    .from_writer(open_writer(&file_handle)?);
+                csv_wtr.write_record(&header)?;
+                csv_wtr.write_record(&record)?;
+                file_handles.insert(value.to_string(), csv_wtr);
+            }
+        }
+    }
+    
+    Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use std::fs;
+
+    use super::*;
+
+    #[test]
+    fn test_split_file() {
+        let file_rdr = open_reader("testdata/small.concat.regenie").unwrap();
+        process_file(file_rdr, "CHROM".to_string(), ' ').unwrap();
+        let desired_result_1 = fs::read_to_string("testdata/small.1.regenie").unwrap();
+        let desired_result_2 = fs::read_to_string("testdata/small.2.regenie").unwrap();
+        let result_1 = fs::read_to_string("CHROM_1.csv").unwrap();
+        let result_2 = fs::read_to_string("CHROM_2.csv").unwrap();
+        assert_eq!(result_1, desired_result_1);
+        assert_eq!(result_2, desired_result_2);
+        fs::remove_file("CHROM_1.csv").unwrap();
+        fs::remove_file("CHROM_2.csv").unwrap();
+    }
+}
