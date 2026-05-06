@@ -6,7 +6,11 @@ Command-line utilities to do GWAS-related things
 
 `csv_concat_files` - Concatenate multiple CSV output files into a single file
 
+`csv_filter_rows` - Filter a CSV file based on logical expressions
+
 `csv_select_columns` - Subset a CSV file to specific columns
+
+`csv_split_on_categorical_column` - Split a CSV file into multiple output files based on the categories in a specified column
 
 `dnanexus_make_dxfuse_manifest` - Convert a list of DNAnexus file identifiers into a dxfuse manifest file
 
@@ -41,7 +45,7 @@ and the binaries get built in the repo's directory:
 ```
 ❯ ls target/release
 ...
-... csv_select_columns ... csv_concat_files ... dnanexus_make_dxfuse_manifest ... regenie_add_pval_col ...
+... csv_concat_files ... csv_filter_rows ... csv_select_columns ... csv_split_on_categorical_column ... dnanexus_make_dxfuse_manifest ... regenie_add_pval_col ...
 ```
 
 ### Cross-compilation
@@ -71,6 +75,22 @@ Options:
 ```
 
 ```
+❯ csv_filter_rows -h
+Filter rows from a CSV file based on a specified expression.
+
+Usage: csv_filter_rows -i infile.csv -e 'column1 == value' -e 'column2 > 5' ... -d " " -o filtered.csv
+
+Options:
+  -i, --input <INPUT>               Input CSV file to process (can be gzipped if filename ends with .gz)
+  -e, --expression <EXPRESSION>...  Expression(s) to filter rows ["==", "!=", ">=", "<=", ">", "<"]
+      --any                         Any expression must be true for a row to be included instead of all expressions needing to be true (the default)
+  -d, --delim <DELIM>               Delimiter for CSV file reading and writing (default is tab, use " " for space, etc.) [default: \t]
+  -o, --output <OUTPUT>             Output CSV file to write with rows that pass the filter(s) (will be gzipped if filename ends with .gz)
+  -h, --help                        Print help
+  -V, --version                     Print version
+```
+
+```
 ❯ csv_select_columns -h
 Select specific columns from a CSV file.
 
@@ -83,6 +103,20 @@ Options:
   -o, --output <OUTPUT>       Output file to write with selected columns (will be gzipped if filename ends with .gz)
   -h, --help                  Print help
   -V, --version               Print version
+```
+
+```
+❯ csv_split_on_categorical_column -h
+Split a CSV file into multiple files based on unique values in a specified categorical column.
+
+Usage: csv_split_on_categorical_column -i infile.csv[.gz] -d " " -c colname
+
+Options:
+  -i, --input <INPUT>    Input CSV file to process (can be gzipped if filename ends with .gz)
+  -c, --column <COLUMN>  Categorical column name to split on
+  -d, --delim <DELIM>    Delimiter for CSV file reading and writing (default is tab, use " " for space, etc.) [default: \t]
+  -h, --help             Print help
+  -V, --version          Print version
 ```
 
 ```

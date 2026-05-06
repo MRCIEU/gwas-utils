@@ -3,7 +3,7 @@ use flate2::read::GzDecoder;
 use flate2::write::GzEncoder;
 use std::error::Error;
 use std::fs::File;
-use std::io::{Read, Write};
+use std::io::{Read, Seek, Write};
 
 pub enum Reader {
     File(std::fs::File),
@@ -15,6 +15,15 @@ impl Read for Reader {
         match self {
             Reader::File(f) => f.read(buf),
             Reader::GzFile(gz) => gz.read(buf),
+        }
+    }
+}
+
+impl Reader {
+    pub fn seek(&mut self, pos: std::io::SeekFrom) -> std::io::Result<u64> {
+        match self {
+            Reader::File(f) => f.seek(pos),
+            Reader::GzFile(gz) => gz.get_mut().seek(pos),
         }
     }
 }
