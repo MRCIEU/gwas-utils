@@ -5,13 +5,12 @@ use std::error::Error;
 use std::fs::File;
 use std::io;
 use std::io::BufWriter;
-use std::process;
 
-const USAGE: &str = "dnanexus_make_dxfuse_manifest -f <\"file-xxxx\" \"file-yyyy\" ...> -p ${DX_PROJECT_CONTEXT_ID} -o manifest.json";
+pub(crate) const USAGE: &str = "dnanexus_make_dxfuse_manifest -f <\"file-xxxx\" \"file-yyyy\" ...> -p ${DX_PROJECT_CONTEXT_ID} -o manifest.json";
+pub(crate) const ABOUT: &str = "Convert a list of dnanexus file identifiers into a dxfuse manifest file. File identifiers are extracted by regex: file-[a-zA-Z0-9]{24}.";
 
 #[derive(Parser, Debug)]
-#[command(version, override_usage = USAGE, about = "Convert a list of dnanexus file identifiers into a dxfuse manifest file. File identifiers are extracted by regex: file-[a-zA-Z0-9]{24}.")]
-struct Args {
+pub(crate) struct Args {
     /// A list of dnanexus file identifiers (file-xxxx, {$dnanexus_link: file-yyyy}, etc.) to include in the manifest
     #[arg(short, long, num_args = 1..)]
     fileids: Vec<String>,
@@ -25,27 +24,24 @@ struct Args {
     output: String,
 }
 
-fn main() {
-    if let Err(err) = run() {
-        println!("Error: {}", err);
-        println!("Usage: {}", USAGE);
-        process::exit(1);
-    }
-}
-
-fn run() -> Result<(), Box<dyn Error>> {
-    let (raw_strings, project_id, file_wtr) = handle_commandline_args()?;
+pub(crate) fn run(args: Args) -> Result<(), Box<dyn Error>> {
+    let (raw_strings, project_id, file_wtr) = handle_commandline_args(args)?;
     process_strings(raw_strings, project_id, file_wtr)?;
     Ok(())
 }
 
-fn handle_commandline_args() -> Result<(Vec<String>, String, BufWriter<File>), Box<dyn Error>> {
-    let args = Args::parse();
+pub(crate) fn handle_commandline_args(
+    args: Args,
+) -> Result<(Vec<String>, String, BufWriter<File>), Box<dyn Error>> {
     let wtr = BufWriter::new(File::create(&args.output)?);
     Ok((args.fileids, args.projectid, wtr))
 }
 
-fn process_strings<W>(raw_strings: Vec<String>, project_id: String, mut wtr: W) -> Result<(), Box<dyn Error>>
+fn process_strings<W>(
+    raw_strings: Vec<String>,
+    project_id: String,
+    mut wtr: W,
+) -> Result<(), Box<dyn Error>>
 where
     W: io::Write,
 {

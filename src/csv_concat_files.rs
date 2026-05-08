@@ -2,15 +2,16 @@ use clap::Parser;
 use csv::StringRecord;
 use std::error::Error;
 use std::io;
-use std::process;
 
 use gwas_utilities::{get_delimeter, open_reader, open_writer};
 
-const USAGE: &str = "csv_concat_files -i <infile1.csv[.gz] infile2.csv[.gz] ...> -d \" \" -o outfile.csv[.gz]";
+pub(crate) const USAGE: &str =
+    "csv_concat_files -i <infile1.csv[.gz] infile2.csv[.gz] ...> -d \" \" -o outfile.csv[.gz]";
+
+pub(crate) const ABOUT: &str = "Concatenate multiple CSV files into a single file";
 
 #[derive(Parser, Debug)]
-#[command(version, override_usage = USAGE, about = "Concatenate multiple CSV output files into a single file. The input files must have the same header line. The output file will contain the header followed by all the records from the input files")]
-struct Args {
+pub(crate) struct Args {
     /// CSV files to concatenate (can be gzipped if filenames end with .gz)
     #[arg(short, long, num_args = 1..)]
     input: Vec<String>,
@@ -24,22 +25,15 @@ struct Args {
     output: String,
 }
 
-fn main() {
-    if let Err(err) = run() {
-        println!("Error: {}", err);
-        println!("Usage: {}", USAGE);
-        process::exit(1);
-    }
-}
-
-fn run() -> Result<(), Box<dyn Error>> {
-    let (ifilenames, file_wtr, sep) = handle_commandline_args()?;
+pub(crate) fn run(args: Args) -> Result<(), Box<dyn Error>> {
+    let (ifilenames, file_wtr, sep) = handle_commandline_args(args)?;
     process_files(ifilenames, file_wtr, sep)?;
     Ok(())
 }
 
-fn handle_commandline_args() -> Result<(Vec<String>, gwas_utilities::Writer, char), Box<dyn Error>> {
-    let args = Args::parse();
+fn handle_commandline_args(
+    args: Args,
+) -> Result<(Vec<String>, gwas_utilities::Writer, char), Box<dyn Error>> {
     let file_wtr: gwas_utilities::Writer = open_writer(&args.output)?;
     let sep = get_delimeter(&args.delim)?;
     Ok((args.input, file_wtr, sep))
@@ -49,7 +43,9 @@ fn process_files<W>(ifilenames: Vec<String>, wtr: W, sep: char) -> Result<(), Bo
 where
     W: io::Write,
 {
-    let mut csv_wtr = csv::WriterBuilder::new().delimiter(sep as u8).from_writer(wtr);
+    let mut csv_wtr = csv::WriterBuilder::new()
+        .delimiter(sep as u8)
+        .from_writer(wtr);
 
     let mut index_header = StringRecord::new();
 

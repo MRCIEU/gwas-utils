@@ -1,15 +1,15 @@
 use clap::Parser;
 use std::error::Error;
 use std::io;
-use std::process;
 
 use gwas_utilities::{open_reader, open_writer};
 
-const USAGE: &str = "regenie_add_pval_col -i infile.regenie[.gz] -o outfile.regenie[.gz]";
+pub(crate) const USAGE: &str =
+    "regenie_add_pval_col -i infile.regenie[.gz] -o outfile.regenie[.gz]";
+pub(crate) const ABOUT: &str = "Add a P column to a Regenie output file based on the LOG10P column. If the LOG10P value is large enough that the corresponding P value would be zero, then the P value is set to f64::MIN_POSITIVE";
 
 #[derive(Parser, Debug)]
-#[command(version, override_usage = USAGE, about = "Add a P column to a Regenie output file based on the LOG10P column. If the LOG10P value is large enough that the corresponding P value would be zero, then the P value is set to f64::MIN_POSITIVE")]
-struct Args {
+pub(crate) struct Args {
     /// Regenie file to process (can be gzipped if filename ends with .gz)
     #[arg(short, long)]
     input: String,
@@ -19,22 +19,14 @@ struct Args {
     output: String,
 }
 
-fn main() {
-    if let Err(err) = run() {
-        println!("Error: {}", err);
-        println!("Usage: {}", USAGE);
-        process::exit(1);
-    }
-}
-
-fn run() -> Result<(), Box<dyn Error>> {
-    let (file_rdr, file_wtr) = handle_commandline_args()?;
+pub(crate) fn run(args: Args) -> Result<(), Box<dyn Error>> {
+    let (file_rdr, file_wtr) = handle_commandline_args(args)?;
     process_file(file_rdr, file_wtr)
 }
 
-fn handle_commandline_args()
--> Result<(gwas_utilities::Reader, gwas_utilities::Writer), Box<dyn Error>> {
-    let args = Args::parse();
+fn handle_commandline_args(
+    args: Args,
+) -> Result<(gwas_utilities::Reader, gwas_utilities::Writer), Box<dyn Error>> {
     let file_rdr = open_reader(&args.input)?;
     let file_wtr = open_writer(&args.output)?;
     Ok((file_rdr, file_wtr))
@@ -51,7 +43,7 @@ where
         .from_reader(rdr);
 
     let mut header = csv_rdr.headers()?.clone();
-    
+
     let log10_p_col_idx = header
         .iter()
         .position(|h| h == "LOG10P")
