@@ -1,8 +1,8 @@
 # gwas-utils
 
-Command-line utilities to do GWAS-related things
+`gu` - Command-line utilities to do GWAS-related things
 
-## Constituent programs
+## subcommands
 
 `csv_concat_files` - Concatenate multiple CSV output files into a single file
 
@@ -26,10 +26,10 @@ Then you should be able to install gwas-utils by running:
 cargo install --git https://github.com/mrcieu/gwas-utils
 ```
 
-and the binaries will be installed somewhere in your `$PATH`:
+and the binary will be installed somewhere in your `$PATH`:
 
 ```
-csv_concat_files -h
+gu csv_concat_files -h
 ```
 
 or clone the repository and build it:
@@ -40,12 +40,11 @@ cd gwas-utils
 cargo build --release
 ```
 
-and the binaries get built in the repo's directory:
+and the binary gets built in the repo's directory:
 
 ```
 ❯ ls target/release
-...
-... csv_concat_files ... csv_filter_rows ... csv_select_columns ... csv_split_on_categorical_column ... dnanexus_make_dxfuse_manifest ... regenie_add_pval_col ...
+gu
 ```
 
 ### Cross-compilation
@@ -61,7 +60,25 @@ cargo build --release --target x86_64-unknown-linux-musl
 ## Help / Usage
 
 ```
-❯ csv_concat_files -h
+❯ gu -h
+Usage: gu <COMMAND>
+
+Commands:
+  csv_concat_files                 Concatenate multiple CSV files into a single file
+  csv_filter_rows                  Filter rows from a CSV file based on column-specific expressions
+  csv_select_columns               Select specific columns from a CSV file
+  csv_split_on_categorical_column  Split a CSV file into multiple files based on unique values in a specified categorical column
+  dnanexus_make_dxfuse_manifest    Convert a list of dnanexus file identifiers into a dxfuse manifest file. File identifiers are extracted by regex: file-[a-zA-Z0-9]{24}.
+  regenie_add_pval_col             Add a P column to a Regenie output file based on the LOG10P column. If the LOG10P value is large enough that the corresponding P value would be zero, then the P value is set to f64::MIN_POSITIVE
+  help                             Print this message or the help of the given subcommand(s)
+
+Options:
+  -h, --help     Print help
+  -V, --version  Print version
+```
+
+```
+❯ gu csv_concat_files -h
 Concatenate multiple CSV output files into a single file. The input files must have the same header line. The output file will contain the header followed by all the records from the input files
 
 Usage: csv_concat_files -i <infile1.csv[.gz] infile2.csv[.gz] ...> -d " " -o outfile.csv[.gz]
@@ -75,7 +92,7 @@ Options:
 ```
 
 ```
-❯ csv_filter_rows -h
+❯ gu csv_filter_rows -h
 Filter rows from a CSV file based on column-specific expressions
 
 Usage: csv_filter_rows -i infile.csv[.gz] -e 'sex == male' -e 'age > 5' ... -d "," -o filtered.csv[.gz]
@@ -91,7 +108,7 @@ Options:
 ```
 
 ```
-❯ csv_select_columns -h
+❯ gu csv_select_columns -h
 Select specific columns from a CSV file.
 
 Usage: csv_select_columns -i infile.csv[.gz] -d " " -c <column1 column2 ...> -o outfile.csv[.gz]
@@ -106,7 +123,7 @@ Options:
 ```
 
 ```
-❯ csv_split_on_categorical_column -h
+❯ gu csv_split_on_categorical_column -h
 Split a CSV file into multiple files based on unique values in a specified categorical column.
 
 Usage: csv_split_on_categorical_column -i infile.csv[.gz] -d " " -c colname
@@ -120,7 +137,7 @@ Options:
 ```
 
 ```
-❯ dnanexus_make_dxfuse_manifest -h
+❯ gu dnanexus_make_dxfuse_manifest -h
 Convert a list of dnanexus file identifiers into a dxfuse manifest file. File identifiers are extracted by regex: file-[a-zA-Z0-9]{24}.
 
 Usage: dnanexus_make_dxfuse_manifest -f <"file-xxxx" "file-yyyy" ...> -p ${DX_PROJECT_CONTEXT_ID} -o manifest.json
@@ -134,7 +151,7 @@ Options:
 ```
 
 ```
-❯ regenie_add_pval_col -h
+❯ gu regenie_add_pval_col -h
 Add a P column to a Regenie output file based on the LOG10P column. If the LOG10P value is large enough that the corresponding P value would be zero, then the P value is set to f64::MIN_POSITIVE
 
 Usage: regenie_add_pval_col -i infile.regenie[.gz] -o outfile.regenie[.gz]

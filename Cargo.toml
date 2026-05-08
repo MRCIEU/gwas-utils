@@ -1,6 +1,6 @@
 [package]
 name = "gwas-utilities"
-version = "0.4.0"
+version = "0.5.0"
 edition = "2024"
 
 [dependencies]
@@ -11,25 +11,5 @@ regex = "1.12.3"
 serde_json = "1.0.149"
 
 [[bin]]
-name = "csv_concat_files"
-path = "src/csv_concat_files/main.rs"
-
-[[bin]]
-name = "csv_filter_rows"
-path = "src/csv_filter_rows/main.rs"
-
-[[bin]]
-name = "csv_select_columns"
-path = "src/csv_select_columns/main.rs"
-
-[[bin]]
-name = "csv_split_on_categorical_column"
-path = "src/csv_split_on_categorical_column/main.rs"
-
-[[bin]]
-name = "dnanexus_make_dxfuse_manifest"
-path = "src/dnanexus_make_dxfuse_manifest/main.rs"
-
-[[bin]]
-name = "regenie_add_pval_col"
-path = "src/regenie_add_pval_col/main.rs"
+name = "gu"
+path = "src/main.rs"

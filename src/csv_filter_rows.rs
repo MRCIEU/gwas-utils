@@ -1,16 +1,14 @@
 use clap::Parser;
-use gwas_utilities::get_delimeter;
 use std::error::Error;
 use std::io;
-use std::process;
 
-use gwas_utilities::{open_reader, open_writer};
+use gwas_utilities::{get_delimeter, open_reader, open_writer};
 
-const USAGE: &str = "csv_filter_rows -i infile.csv[.gz] -e 'sex == male' -e 'age > 5' ... -d \",\" -o filtered.csv[.gz]";
+pub(crate) const USAGE: &str = "csv_filter_rows -i infile.csv[.gz] -e 'sex == male' -e 'age > 5' ... -d \",\" -o filtered.csv[.gz]";
+pub(crate) const ABOUT: &str = "Filter rows from a CSV file based on column-specific expressions";
 
 #[derive(Parser, Debug)]
-#[command(version, override_usage = USAGE, about = "Filter rows from a CSV file based on column-specific expressions")]
-struct Args {
+pub(crate) struct Args {
     /// Input CSV file (can be gzipped if filename ends with .gz)
     #[arg(short, long)]
     input: String,
@@ -32,22 +30,23 @@ struct Args {
     output: String,
 }
 
-fn main() {
-    if let Err(err) = run() {
-        println!("Error: {}", err);
-        println!("Usage: {}", USAGE);
-        process::exit(1);
-    }
-}
-
-fn run() -> Result<(), Box<dyn Error>> {
-    let (file_rdr, file_wtr, sep , filters, any) = handle_commandline_args()?;
+pub(crate) fn run(args: Args) -> Result<(), Box<dyn Error>> {
+    let (file_rdr, file_wtr, sep, filters, any) = handle_commandline_args(args)?;
     process_file(file_rdr, file_wtr, sep, filters, any)
 }
 
-fn handle_commandline_args()
--> Result<(gwas_utilities::Reader, gwas_utilities::Writer, char, Vec<ColumnFilter>, bool), Box<dyn Error>> {
-    let args = Args::parse();
+fn handle_commandline_args(
+    args: Args,
+) -> Result<
+    (
+        gwas_utilities::Reader,
+        gwas_utilities::Writer,
+        char,
+        Vec<ColumnFilter>,
+        bool,
+    ),
+    Box<dyn Error>,
+> {
     let file_rdr = open_reader(&args.input)?;
     let file_wtr = open_writer(&args.output)?;
     let sep = get_delimeter(&args.delim)?;
@@ -108,7 +107,10 @@ struct ColumnFilter {
 }
 
 fn parse_filters(expressions: Vec<String>) -> Result<Vec<ColumnFilter>, Box<dyn Error>> {
-    expressions.into_iter().map(|expr| parse_filter(&expr)).collect()
+    expressions
+        .into_iter()
+        .map(|expr| parse_filter(&expr))
+        .collect()
 }
 
 fn parse_filter(expr: &str) -> Result<ColumnFilter, Box<dyn Error>> {
@@ -129,7 +131,13 @@ fn parse_filter(expr: &str) -> Result<ColumnFilter, Box<dyn Error>> {
     Err(format!("Invalid expression format: {}", expr).into())
 }
 
-fn process_file<R, W>(rdr: R, wtr: W, sep: char, mut filters: Vec<ColumnFilter>, any: bool) -> Result<(), Box<dyn Error>>
+fn process_file<R, W>(
+    rdr: R,
+    wtr: W,
+    sep: char,
+    mut filters: Vec<ColumnFilter>,
+    any: bool,
+) -> Result<(), Box<dyn Error>>
 where
     R: io::Read,
     W: io::Write,
@@ -140,16 +148,21 @@ where
         .from_reader(rdr);
 
     let header = csv_rdr.headers()?.clone();
-    
+
     // Set column indices for filters based on header
     for filter in &mut filters {
         filter.column_idx = header
             .iter()
             .position(|h| h == filter.column_name)
-            .ok_or(format!("Column '{}' not found in CSV header", filter.column_name))?;
+            .ok_or(format!(
+                "Column '{}' not found in CSV header",
+                filter.column_name
+            ))?;
     }
 
-    let mut csv_wtr = csv::WriterBuilder::new().delimiter(sep as u8).from_writer(wtr);
+    let mut csv_wtr = csv::WriterBuilder::new()
+        .delimiter(sep as u8)
+        .from_writer(wtr);
 
     csv_wtr.write_record(&header)?;
 
@@ -191,14 +204,19 @@ mod tests {
     fn test_filter_csv_1() {
         let file_rdr = open_reader("testdata/small.concat.regenie").unwrap();
         let mut wtr = Cursor::new(Vec::new());
-        let filters = vec![parse_filter("CHROM == 1").unwrap(), parse_filter("GENPOS < 3").unwrap()];
+        let filters = vec![
+            parse_filter("CHROM == 1").unwrap(),
+            parse_filter("GENPOS < 3").unwrap(),
+        ];
         process_file(file_rdr, &mut wtr, ' ', filters, false).unwrap();
-        
-        let desired_result = r#"CHROM GENPOS ID ALLELE0 ALLELE1 A1FREQ INFO N TEST BETA SE CHISQ LOG10P EXTRA
+
+        let desired_result =
+            r#"CHROM GENPOS ID ALLELE0 ALLELE1 A1FREQ INFO N TEST BETA SE CHISQ LOG10P EXTRA
 1 1 1 2 1 0.214575 1 494 ADD 0.0775674 0.230001 0.113736 0.133163 NA
 1 2 2 2 1 0.218623 1 494 ADD 0.131068 0.239808 0.29872 0.233077 NA
-"#.to_string();
-        
+"#
+            .to_string();
+
         let result_str = String::from_utf8(wtr.into_inner()).unwrap();
         assert_eq!(result_str, desired_result);
     }
@@ -207,10 +225,14 @@ mod tests {
     fn test_filter_csv_2() {
         let file_rdr = open_reader("testdata/small.concat.regenie").unwrap();
         let mut wtr = Cursor::new(Vec::new());
-        let filters = vec![parse_filter("CHROM == 1").unwrap(), parse_filter("GENPOS < 3").unwrap()];
+        let filters = vec![
+            parse_filter("CHROM == 1").unwrap(),
+            parse_filter("GENPOS < 3").unwrap(),
+        ];
         process_file(file_rdr, &mut wtr, ' ', filters, true).unwrap();
-        
-        let desired_result = r#"CHROM GENPOS ID ALLELE0 ALLELE1 A1FREQ INFO N TEST BETA SE CHISQ LOG10P EXTRA
+
+        let desired_result =
+            r#"CHROM GENPOS ID ALLELE0 ALLELE1 A1FREQ INFO N TEST BETA SE CHISQ LOG10P EXTRA
 1 1 1 2 1 0.214575 1 494 ADD 0.0775674 0.230001 0.113736 0.133163 NA
 1 2 2 2 1 0.218623 1 494 ADD 0.131068 0.239808 0.29872 0.233077 NA
 1 3 3 2 1 0.211538 1 494 ADD -0.256723 0.244611 1.10148 0.531739 NA
@@ -218,8 +240,9 @@ mod tests {
 1 5 5 2 1 0.195344 1 494 ADD -0.187228 0.235372 0.632751 0.370236 NA
 2 1 5 2 1 0.195344 1 494 ADD -0.187228 0.235372 0.632751 0.370236 NA
 2 2 6 2 1 0.190283 1 494 ADD -0.234935 0.245557 0.91536 0.47019 NA
-"#.to_string();
-        
+"#
+            .to_string();
+
         let result_str = String::from_utf8(wtr.into_inner()).unwrap();
         assert_eq!(result_str, desired_result);
     }
