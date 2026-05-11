@@ -3,10 +3,10 @@ use csv::StringRecord;
 use std::error::Error;
 use std::io;
 
-use gwas_utilities::{get_delimeter, open_reader, open_writer};
+use gwas_utils::{get_delimeter, open_reader, open_writer};
 
 pub(crate) const USAGE: &str =
-    "csv_concat_files -i <infile1.csv[.gz] infile2.csv[.gz] ...> -d \" \" -o outfile.csv[.gz]";
+    "gu csv_concat_files -i <infile1.csv[.gz] infile2.csv[.gz] ...> -d \" \" -o outfile.csv[.gz]";
 
 pub(crate) const ABOUT: &str = "Concatenate multiple CSV files into a single file";
 
@@ -33,8 +33,8 @@ pub(crate) fn run(args: Args) -> Result<(), Box<dyn Error>> {
 
 fn handle_commandline_args(
     args: Args,
-) -> Result<(Vec<String>, gwas_utilities::Writer, char), Box<dyn Error>> {
-    let file_wtr: gwas_utilities::Writer = open_writer(&args.output)?;
+) -> Result<(Vec<String>, gwas_utils::Writer, char), Box<dyn Error>> {
+    let file_wtr: gwas_utils::Writer = open_writer(&args.output)?;
     let sep = get_delimeter(&args.delim)?;
     Ok((args.input, file_wtr, sep))
 }
@@ -50,21 +50,21 @@ where
     let mut index_header = StringRecord::new();
 
     for (i, filename) in ifilenames.iter().enumerate() {
-        let file_rdr: gwas_utilities::Reader = open_reader(filename)?;
-        let mut rdr = csv::ReaderBuilder::new()
+        let file_rdr: gwas_utils::Reader = open_reader(filename)?;
+        let mut csv_rdr = csv::ReaderBuilder::new()
             .has_headers(true)
             .delimiter(sep as u8)
             .from_reader(file_rdr);
         if i == 0 {
-            index_header = rdr.headers()?.clone();
+            index_header = csv_rdr.headers()?.clone();
             csv_wtr.write_record(&index_header)?;
         } else {
-            let header = rdr.headers()?.clone();
+            let header = csv_rdr.headers()?.clone();
             if header != index_header {
                 return Err("Mismatched headers in input files".into());
             }
         }
-        for result in rdr.records() {
+        for result in csv_rdr.records() {
             let record = result?;
             csv_wtr.write_record(&record)?;
         }

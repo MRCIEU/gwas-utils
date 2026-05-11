@@ -2,10 +2,9 @@ use clap::Parser;
 use std::error::Error;
 use std::io;
 
-use gwas_utilities::{get_delimeter, open_reader, open_writer};
+use gwas_utils::{get_delimeter, open_reader, open_writer};
 
-pub(crate) const USAGE: &str =
-    "csv_select_columns -i infile.csv[.gz] -d \" \" -c <column1 column2 ...> -o outfile.csv[.gz]";
+pub(crate) const USAGE: &str = "gu csv_select_columns -i infile.csv[.gz] -d \" \" -c <column1 column2 ...> -o outfile.csv[.gz]";
 pub(crate) const ABOUT: &str = "Select specific columns from a CSV file";
 
 #[derive(Parser, Debug)]
@@ -34,15 +33,7 @@ pub(crate) fn run(args: Args) -> Result<(), Box<dyn Error>> {
 
 fn handle_commandline_args(
     args: Args,
-) -> Result<
-    (
-        gwas_utilities::Reader,
-        gwas_utilities::Writer,
-        Vec<String>,
-        char,
-    ),
-    Box<dyn Error>,
-> {
+) -> Result<(gwas_utils::Reader, gwas_utils::Writer, Vec<String>, char), Box<dyn Error>> {
     let file_rdr = open_reader(&args.input)?;
     let file_wtr = open_writer(&args.output)?;
     let sep = get_delimeter(&args.delim)?;

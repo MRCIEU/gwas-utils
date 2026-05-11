@@ -3,10 +3,10 @@ use std::collections::HashMap;
 use std::error::Error;
 use std::io;
 
-use gwas_utilities::{get_delimeter, open_reader, open_writer};
+use gwas_utils::{get_delimeter, open_reader, open_writer};
 
 pub(crate) const USAGE: &str =
-    "csv_split_on_categorical_column -i infile.csv[.gz] -d \" \" -c colname";
+    "gu csv_split_on_categorical_column -i infile.csv[.gz] -d \" \" -c colname";
 pub(crate) const ABOUT: &str =
     "Split a CSV file into multiple files based on unique values in a specified categorical column";
 
@@ -55,7 +55,7 @@ where
             column_to_split_on
         ))?;
 
-    let mut file_handles: HashMap<String, csv::Writer<gwas_utilities::Writer>> = HashMap::new();
+    let mut file_handles: HashMap<String, csv::Writer<gwas_utils::Writer>> = HashMap::new();
     for result in csv_rdr.records() {
         let record = result?;
         if let Some(value) = record.get(column_index) {

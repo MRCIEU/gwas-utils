@@ -2,10 +2,10 @@ use clap::Parser;
 use std::error::Error;
 use std::io;
 
-use gwas_utilities::{open_reader, open_writer};
+use gwas_utils::{open_reader, open_writer};
 
 pub(crate) const USAGE: &str =
-    "regenie_add_pval_col -i infile.regenie[.gz] -o outfile.regenie[.gz]";
+    "gu regenie_add_pval_col -i infile.regenie[.gz] -o outfile.regenie[.gz]";
 pub(crate) const ABOUT: &str = "Add a P column to a Regenie output file based on the LOG10P column. If the LOG10P value is large enough that the corresponding P value would be zero, then the P value is set to f64::MIN_POSITIVE";
 
 #[derive(Parser, Debug)]
@@ -26,7 +26,7 @@ pub(crate) fn run(args: Args) -> Result<(), Box<dyn Error>> {
 
 fn handle_commandline_args(
     args: Args,
-) -> Result<(gwas_utilities::Reader, gwas_utilities::Writer), Box<dyn Error>> {
+) -> Result<(gwas_utils::Reader, gwas_utils::Writer), Box<dyn Error>> {
     let file_rdr = open_reader(&args.input)?;
     let file_wtr = open_writer(&args.output)?;
     Ok((file_rdr, file_wtr))
