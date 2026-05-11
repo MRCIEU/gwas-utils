@@ -1,11 +1,8 @@
 use clap::{Command, CommandFactory, FromArgMatches};
 
-mod csv_concat_files;
-mod csv_filter_rows;
-mod csv_select_columns;
-mod csv_split_on_categorical_column;
-mod dnanexus_make_dxfuse_manifest;
-mod regenie_add_pval_col;
+mod subcommands;
+
+use crate::subcommands::*;
 
 macro_rules! add_subcommands {
     ($cmd:expr, $($module:ident),*) => {
@@ -88,8 +85,8 @@ fn run() -> Result<(), SubcommandError> {
 
     match_subcommand!(
         matches,
-        csv_filter_rows,
         csv_concat_files,
+        csv_filter_rows,
         csv_select_columns,
         csv_split_on_categorical_column,
         dnanexus_make_dxfuse_manifest,

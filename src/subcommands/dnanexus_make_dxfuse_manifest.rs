@@ -6,7 +6,7 @@ use std::fs::File;
 use std::io;
 use std::io::BufWriter;
 
-pub(crate) const USAGE: &str = "dnanexus_make_dxfuse_manifest -f <\"file-xxxx\" \"file-yyyy\" ...> -p ${DX_PROJECT_CONTEXT_ID} -o manifest.json";
+pub(crate) const USAGE: &str = "gu dnanexus_make_dxfuse_manifest -f <\"file-xxxx\" \"file-yyyy\" ...> -p ${DX_PROJECT_CONTEXT_ID} -o manifest.json";
 pub(crate) const ABOUT: &str = "Convert a list of dnanexus file identifiers into a dxfuse manifest file. File identifiers are extracted by regex: file-[a-zA-Z0-9]{24}.";
 
 #[derive(Parser, Debug)]

@@ -2,9 +2,9 @@ use clap::Parser;
 use std::error::Error;
 use std::io;
 
-use gwas_utilities::{get_delimeter, open_reader, open_writer};
+use gwas_utils::{get_delimeter, open_reader, open_writer};
 
-pub(crate) const USAGE: &str = "csv_filter_rows -i infile.csv[.gz] -e 'sex == male' -e 'age > 5' ... -d \",\" -o filtered.csv[.gz]";
+pub(crate) const USAGE: &str = "fu csv_filter_rows -i infile.csv[.gz] -e 'sex == male' -e 'age > 5' ... -d \",\" -o filtered.csv[.gz]";
 pub(crate) const ABOUT: &str = "Filter rows from a CSV file based on column-specific expressions";
 
 #[derive(Parser, Debug)]
@@ -39,8 +39,8 @@ fn handle_commandline_args(
     args: Args,
 ) -> Result<
     (
-        gwas_utilities::Reader,
-        gwas_utilities::Writer,
+        gwas_utils::Reader,
+        gwas_utils::Writer,
         char,
         Vec<ColumnFilter>,
         bool,
