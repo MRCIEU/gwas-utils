@@ -1,6 +1,10 @@
 # gwas-utils
 
-`gu` - Command-line utilities to do GWAS-related things
+`gu` - consists of a set of utilities which were written to do GWAS-related things in cloud environments. 
+
+It compiles to a single (maybe totally self-contained / static) binary, so it comes without the (computational, resource, cognitive) overhead of maintaining a python / R installation + libraries (but also lacks their flexibility). A distroless docker image compiled on Alpine Linux using the Dockerfile in this repo gzips to ~1.3MB in size on disk. 
+
+The utilities (subcommands under `gu`) and their usage are described below.
 
 ## subcommands
 

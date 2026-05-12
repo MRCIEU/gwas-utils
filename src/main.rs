@@ -1,4 +1,4 @@
-use clap::{Command, CommandFactory, FromArgMatches};
+use clap::{Command, CommandFactory, FromArgMatches, crate_version};
 
 mod subcommands;
 
@@ -66,7 +66,7 @@ fn main() {
 
 fn run() -> Result<(), SubcommandError> {
     let mut cmd = Command::new("gu")
-        .version(env!("CARGO_PKG_VERSION"))
+        .version(crate_version!())
         .propagate_version(true)
         .subcommand_required(true)
         .arg_required_else_help(true);
