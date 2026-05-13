@@ -3,24 +3,24 @@ use std::collections::HashMap;
 use std::error::Error;
 use std::io;
 
-use gwas_utils::{get_delimeter, open_reader, open_writer};
+use gwas_utils::{get_delimeter_from_cli_argument, open_reader, open_writer};
 
-pub(crate) const USAGE: &str =
-    "gu csv_split_on_categorical_column -i infile.csv[.gz] -d \" \" -c colname";
-pub(crate) const ABOUT: &str = "Split a CSV file into multiple files based on unique values in a specified categorical column. Output files will be named colname.value.csv by default, but you can specify a different suffix with the -s option (e.g. colname.value.tsv)";
+pub(crate) const USAGE: &str = "gu csv_split_on_categorical_column -i infile.csv[.gz] -c colname";
+pub(crate) const ABOUT: &str =
+    "Split a CSV file into multiple files based on unique values in a specified categorical column";
 
 #[derive(Parser, Debug)]
 pub(crate) struct Args {
     /// Input CSV file (can be gzipped if filename ends with .gz)
-    #[arg(short, long, default_value = "")]
+    #[arg(short, long, default_value = "stdin")]
     input: String,
 
     /// Categorical column name to split on
     #[arg(short, long)]
     column: String,
 
-    /// Delimiter for CSV file reading and writing (default is tab, use " " for space, etc.)
-    #[arg(short, long, default_value = "\\t")]
+    /// Delimiter for CSV file reading and writing
+    #[arg(short, long, default_value = "auto")]
     delim: String,
 
     /// output suffix to add to output files (default is csv, so output files will be named colname.value.csv)
@@ -29,15 +29,20 @@ pub(crate) struct Args {
 }
 
 pub(crate) fn run(args: Args) -> Result<(), Box<dyn Error>> {
-    let (input_file, column_to_split_on, sep, suffix) = handle_commandline_args(args)?;
-    let file_rdr = open_reader(&input_file)?;
+    let (file_rdr, column_to_split_on, sep, suffix) = handle_commandline_args(args)?;
     process_file(file_rdr, column_to_split_on, sep, suffix)?;
     Ok(())
 }
 
-fn handle_commandline_args(args: Args) -> Result<(String, String, char, String), Box<dyn Error>> {
-    let sep = get_delimeter(&args.delim)?;
-    Ok((args.input, args.column, sep, args.suffix))
+fn handle_commandline_args(
+    args: Args,
+) -> Result<(gwas_utils::Reader, String, char, String), Box<dyn Error>> {
+    let mut file_rdr = open_reader(&args.input)?;
+    let sep = match args.delim.as_str() {
+        "auto" => file_rdr.sniff()?,
+        _ => get_delimeter_from_cli_argument(&args.delim)?,
+    };
+    Ok((file_rdr, args.column, sep, args.suffix))
 }
 
 fn process_file<R>(

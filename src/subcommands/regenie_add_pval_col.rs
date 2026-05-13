@@ -2,44 +2,52 @@ use clap::Parser;
 use std::error::Error;
 use std::io;
 
-use gwas_utils::{open_reader, open_writer};
+use gwas_utils::{get_delimeter_from_cli_argument, open_reader, open_writer};
 
 pub(crate) const USAGE: &str =
     "gu regenie_add_pval_col -i infile.regenie[.gz] -o outfile.regenie[.gz]";
-pub(crate) const ABOUT: &str = "Add a P column to a Regenie output file based on the LOG10P column. If the LOG10P value is large enough that the corresponding P value would be zero, then the P value is set to f64::MIN_POSITIVE";
+pub(crate) const ABOUT: &str = "Add a P column to a Regenie output file based on the LOG10P column";
 
 #[derive(Parser, Debug)]
 pub(crate) struct Args {
     /// Regenie file to process (can be gzipped if filename ends with .gz)
-    #[arg(short, long, default_value = "")]
+    #[arg(short, long, default_value = "stdin")]
     input: String,
 
+    /// Delimiter for CSV file reading and writing
+    #[arg(short, long, default_value = "auto")]
+    delim: String,
+
     /// Output file to write with added p-value column (will be gzipped if filename ends with .gz)
-    #[arg(short, long, default_value = "")]
+    #[arg(short, long, default_value = "stdout")]
     output: String,
 }
 
 pub(crate) fn run(args: Args) -> Result<(), Box<dyn Error>> {
-    let (file_rdr, file_wtr) = handle_commandline_args(args)?;
-    process_file(file_rdr, file_wtr)
+    let (file_rdr, file_wtr, sep) = handle_commandline_args(args)?;
+    process_file(file_rdr, file_wtr, sep)
 }
 
 fn handle_commandline_args(
     args: Args,
-) -> Result<(gwas_utils::Reader, gwas_utils::Writer), Box<dyn Error>> {
-    let file_rdr = open_reader(&args.input)?;
+) -> Result<(gwas_utils::Reader, gwas_utils::Writer, char), Box<dyn Error>> {
+    let mut file_rdr = open_reader(&args.input)?;
     let file_wtr = open_writer(&args.output)?;
-    Ok((file_rdr, file_wtr))
+    let sep = match args.delim.as_str() {
+        "auto" => file_rdr.sniff()?,
+        _ => get_delimeter_from_cli_argument(&args.delim)?,
+    };
+    Ok((file_rdr, file_wtr, sep))
 }
 
-fn process_file<R, W>(rdr: R, wtr: W) -> Result<(), Box<dyn Error>>
+fn process_file<R, W>(rdr: R, wtr: W, sep: char) -> Result<(), Box<dyn Error>>
 where
     R: io::Read,
     W: io::Write,
 {
     let mut csv_rdr = csv::ReaderBuilder::new()
         .has_headers(true)
-        .delimiter(b' ')
+        .delimiter(sep as u8)
         .from_reader(rdr);
 
     let mut header = csv_rdr.headers()?.clone();
@@ -51,7 +59,9 @@ where
 
     header.push_field("P");
 
-    let mut csv_wtr = csv::WriterBuilder::new().delimiter(b' ').from_writer(wtr);
+    let mut csv_wtr = csv::WriterBuilder::new()
+        .delimiter(sep as u8)
+        .from_writer(wtr);
 
     csv_wtr.write_record(&header)?;
 
@@ -106,7 +116,7 @@ mod tests {
     fn test_add_p_to_file() {
         let file_rdr = open_reader("testdata/small.concat.regenie").unwrap();
         let mut wtr = Cursor::new(Vec::new());
-        process_file(file_rdr, &mut wtr).unwrap();
+        process_file(file_rdr, &mut wtr, ' ').unwrap();
         let desired_result = fs::read_to_string("testdata/small.concat.P.regenie").unwrap();
         let result = String::from_utf8(wtr.into_inner()).unwrap();
         assert_eq!(result, desired_result);
