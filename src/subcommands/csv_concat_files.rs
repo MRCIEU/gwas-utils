@@ -3,25 +3,24 @@ use csv::StringRecord;
 use std::error::Error;
 use std::io;
 
-use gwas_utils::{get_delimeter, open_reader, open_writer};
+use gwas_utils::{get_delimeter_from_cli_argument, open_reader, open_writer};
 
 pub(crate) const USAGE: &str =
-    "gu csv_concat_files -i <infile1.csv[.gz] infile2.csv[.gz] ...> -d \" \" -o outfile.csv[.gz]";
-
+    "gu csv_concat_files -i infile1.csv[.gz] infile2.csv[.gz] ... -o outfile.csv[.gz]";
 pub(crate) const ABOUT: &str = "Concatenate multiple CSV files into a single file";
 
 #[derive(Parser, Debug)]
 pub(crate) struct Args {
     /// CSV files to concatenate (can be gzipped if filenames end with .gz)
-    #[arg(short, long, num_args = 1..)]
+    #[arg(short, long, num_args = 1.., required = true)]
     input: Vec<String>,
 
-    /// Delimiter for CSV file reading and writing (default is tab, use " " for space, etc.)
-    #[arg(short, long, default_value = "\\t")]
+    /// Delimiter for CSV file reading and writing
+    #[arg(short, long, default_value = "auto")]
     delim: String,
 
     /// Concatenated CSV file to write (will be gzipped if filename ends with .gz)
-    #[arg(short, long)]
+    #[arg(short, long, default_value = "stdout")]
     output: String,
 }
 
@@ -35,7 +34,24 @@ fn handle_commandline_args(
     args: Args,
 ) -> Result<(Vec<String>, gwas_utils::Writer, char), Box<dyn Error>> {
     let file_wtr: gwas_utils::Writer = open_writer(&args.output)?;
-    let sep = get_delimeter(&args.delim)?;
+    let sep = match args.delim.as_str() {
+        "auto" => {
+            let seps = args
+                .input
+                .iter()
+                .map(|filename| {
+                    let mut file_rdr = open_reader(filename)?;
+                    file_rdr.sniff()
+                })
+                .collect::<Result<Vec<char>, Box<dyn Error>>>()?;
+            if seps.iter().all(|&s| s == seps[0]) {
+                seps[0]
+            } else {
+                return Err("Inconsistent delimiters across input files".into());
+            }
+        }
+        _ => get_delimeter_from_cli_argument(&args.delim)?,
+    };
     Ok((args.input, file_wtr, sep))
 }
 

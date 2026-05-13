@@ -2,27 +2,28 @@ use clap::Parser;
 use std::error::Error;
 use std::io;
 
-use gwas_utils::{get_delimeter, open_reader, open_writer};
+use gwas_utils::{get_delimeter_from_cli_argument, open_reader, open_writer};
 
-pub(crate) const USAGE: &str = "gu csv_select_columns -i infile.csv[.gz] -d \" \" -c <column1 column2 ...> -o outfile.csv[.gz]";
+pub(crate) const USAGE: &str =
+    "gu csv_select_columns -i infile.csv[.gz] -c <column1 column2 ...> -o outfile.csv[.gz]";
 pub(crate) const ABOUT: &str = "Select specific columns from a CSV file";
 
 #[derive(Parser, Debug)]
 pub(crate) struct Args {
     /// Input CSV file to process (can be gzipped if filename ends with .gz)
-    #[arg(short, long)]
+    #[arg(short, long, default_value = "stdin")]
     input: String,
 
     /// Column names to select
     #[arg(short, long, num_args = 1..)]
     columns: Vec<String>,
 
-    /// Delimiter for CSV file reading and writing (default is tab, use " " for space, etc.)
-    #[arg(short, long, default_value = "\\t")]
+    /// Delimiter for CSV file reading and writing
+    #[arg(short, long, default_value = "auto")]
     delim: String,
 
     /// Output file to write with selected columns (will be gzipped if filename ends with .gz)
-    #[arg(short, long)]
+    #[arg(short, long, default_value = "stdout")]
     output: String,
 }
 
@@ -34,9 +35,12 @@ pub(crate) fn run(args: Args) -> Result<(), Box<dyn Error>> {
 fn handle_commandline_args(
     args: Args,
 ) -> Result<(gwas_utils::Reader, gwas_utils::Writer, Vec<String>, char), Box<dyn Error>> {
-    let file_rdr = open_reader(&args.input)?;
+    let mut file_rdr = open_reader(&args.input)?;
     let file_wtr = open_writer(&args.output)?;
-    let sep = get_delimeter(&args.delim)?;
+    let sep = match args.delim.as_str() {
+        "auto" => file_rdr.sniff()?,
+        _ => get_delimeter_from_cli_argument(&args.delim)?,
+    };
     Ok((file_rdr, file_wtr, args.columns, sep))
 }
 
@@ -97,16 +101,6 @@ mod tests {
     use std::io::Cursor;
 
     use super::*;
-
-    #[test]
-    fn test_get_delimiter() {
-        assert_eq!(get_delimeter("\t").unwrap(), '\t');
-        assert_eq!(get_delimeter("\\t").unwrap(), '\t');
-        assert_eq!(get_delimeter(r#"	"#).unwrap(), '\t');
-        assert_eq!(get_delimeter(" ").unwrap(), ' ');
-        assert_eq!(get_delimeter(",").unwrap(), ',');
-        assert!(get_delimeter("::").is_err());
-    }
 
     #[test]
     fn test_select_columns() {

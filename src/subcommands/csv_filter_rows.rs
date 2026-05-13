@@ -2,18 +2,19 @@ use clap::Parser;
 use std::error::Error;
 use std::io;
 
-use gwas_utils::{get_delimeter, open_reader, open_writer};
+use gwas_utils::{get_delimeter_from_cli_argument, open_reader, open_writer};
 
-pub(crate) const USAGE: &str = "fu csv_filter_rows -i infile.csv[.gz] -e 'sex == male' -e 'age > 5' ... -d \",\" -o filtered.csv[.gz]";
+pub(crate) const USAGE: &str =
+    "gu csv_filter_rows -i infile.csv[.gz] -e 'sex == male' 'age > 5' ... -o filtered.csv[.gz]";
 pub(crate) const ABOUT: &str = "Filter rows from a CSV file based on column-specific expressions";
 
 #[derive(Parser, Debug)]
 pub(crate) struct Args {
     /// Input CSV file (can be gzipped if filename ends with .gz)
-    #[arg(short, long)]
+    #[arg(short, long, default_value = "stdin")]
     input: String,
 
-    /// Expression(s) to filter rows, in the format "COLUMN-NAME OPERATOR VALUE". Possible operators are: "==", "!=", ">=", "<=", ">", "<". Rows evaluating to true will be included in the output. Multiple expressions will be combined with AND logic by default (use --any for OR logic)
+    /// Expression(s) to filter rows, in the format "COLUMN-NAME OPERATOR VALUE". Possible operators are: "==", "!=", ">=", "<=", ">", "<".
     #[arg(short, long, num_args=1..)]
     expression: Vec<String>,
 
@@ -21,12 +22,12 @@ pub(crate) struct Args {
     #[arg(long, default_value_t = false)]
     any: bool,
 
-    /// Delimiter for CSV file reading and writing (default is tab, use " " for space, etc.)
-    #[arg(short, long, default_value = "\\t")]
+    /// Delimiter for CSV file reading and writing
+    #[arg(short, long, default_value = "auto")]
     delim: String,
 
     /// Filtered CSV file to write (will be gzipped if filename ends with .gz)
-    #[arg(short, long)]
+    #[arg(short, long, default_value = "stdout")]
     output: String,
 }
 
@@ -47,9 +48,12 @@ fn handle_commandline_args(
     ),
     Box<dyn Error>,
 > {
-    let file_rdr = open_reader(&args.input)?;
+    let mut file_rdr = open_reader(&args.input)?;
     let file_wtr = open_writer(&args.output)?;
-    let sep = get_delimeter(&args.delim)?;
+    let sep = match args.delim.as_str() {
+        "auto" => file_rdr.sniff()?,
+        _ => get_delimeter_from_cli_argument(&args.delim)?,
+    };
     let filters = parse_filters(args.expression)?;
     Ok((file_rdr, file_wtr, sep, filters, args.any))
 }
