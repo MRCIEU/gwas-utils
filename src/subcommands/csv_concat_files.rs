@@ -13,7 +13,7 @@ pub(crate) const ABOUT: &str = "Concatenate multiple CSV files into a single fil
 #[derive(Parser, Debug)]
 pub(crate) struct Args {
     /// CSV files to concatenate (can be gzipped if filenames end with .gz)
-    #[arg(short, long, num_args = 1..)]
+    #[arg(short, long, num_args = 1.., required = true)]
     input: Vec<String>,
 
     /// Delimiter for CSV file reading and writing (default is tab, use " " for space, etc.)
@@ -21,7 +21,7 @@ pub(crate) struct Args {
     delim: String,
 
     /// Concatenated CSV file to write (will be gzipped if filename ends with .gz)
-    #[arg(short, long)]
+    #[arg(short, long, default_value = "")]
     output: String,
 }
 

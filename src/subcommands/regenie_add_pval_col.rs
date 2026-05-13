@@ -11,11 +11,11 @@ pub(crate) const ABOUT: &str = "Add a P column to a Regenie output file based on
 #[derive(Parser, Debug)]
 pub(crate) struct Args {
     /// Regenie file to process (can be gzipped if filename ends with .gz)
-    #[arg(short, long)]
+    #[arg(short, long, default_value = "")]
     input: String,
 
     /// Output file to write with added p-value column (will be gzipped if filename ends with .gz)
-    #[arg(short, long)]
+    #[arg(short, long, default_value = "")]
     output: String,
 }
 

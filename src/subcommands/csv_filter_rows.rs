@@ -10,7 +10,7 @@ pub(crate) const ABOUT: &str = "Filter rows from a CSV file based on column-spec
 #[derive(Parser, Debug)]
 pub(crate) struct Args {
     /// Input CSV file (can be gzipped if filename ends with .gz)
-    #[arg(short, long)]
+    #[arg(short, long, default_value = "")]
     input: String,
 
     /// Expression(s) to filter rows, in the format "COLUMN-NAME OPERATOR VALUE". Possible operators are: "==", "!=", ">=", "<=", ">", "<". Rows evaluating to true will be included in the output. Multiple expressions will be combined with AND logic by default (use --any for OR logic)
@@ -26,7 +26,7 @@ pub(crate) struct Args {
     delim: String,
 
     /// Filtered CSV file to write (will be gzipped if filename ends with .gz)
-    #[arg(short, long)]
+    #[arg(short, long, default_value = "")]
     output: String,
 }
 

@@ -12,7 +12,7 @@ pub(crate) const ABOUT: &str = "Split a CSV file into multiple files based on un
 #[derive(Parser, Debug)]
 pub(crate) struct Args {
     /// Input CSV file (can be gzipped if filename ends with .gz)
-    #[arg(short, long)]
+    #[arg(short, long, default_value = "")]
     input: String,
 
     /// Categorical column name to split on
