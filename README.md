@@ -8,17 +8,17 @@ The utilities (subcommands under `gu`) and their usage are described below.
 
 ## subcommands
 
+`csvaddp` - Add a P column to a CSV file based on a LOG10P column
+
 `csvconcat` - Concatenate multiple CSV output files into a single file
 
 `csvfilter` - Filter a CSV file based on logical expressions
 
 `csvselect` - Subset a CSV file to specific columns
 
-`csvsplitn` - Split a CSV file into multiple output files based on the categories in a specified column
+`csvsplit` - Split a CSV file into multiple output files based on the categories in a specified column
 
 `make_dxfuse_manifest` - Convert a list of DNAnexus file identifiers into a dxfuse manifest file
-
-`csvaddp` - Add a P column to a CSV file based on a LOG10P column
 
 ## Installation
 
@@ -33,7 +33,7 @@ cargo install --git https://github.com/mrcieu/gwas-utils
 and the binary will be installed somewhere in your `$PATH`:
 
 ```
-gu csv_concat_files -h
+gu csvconcat -h
 ```
 
 or clone the repository and build it:
@@ -68,17 +68,33 @@ cargo build --release --target x86_64-unknown-linux-musl
 Usage: gu <COMMAND>
 
 Commands:
+  csvaddp               Add a P column to a CSV file based on a LOG10P column
   csvconcat             Concatenate multiple CSV files into a single file
+  csvdelim              Change the delimeter of a CSV file
   csvfilter             Filter rows from a CSV file based on column-specific expressions
   csvselect             Select specific columns from a CSV file
   csvsplit              Split a CSV file into multiple files based on unique values in a specified categorical column
   make_dxfuse_manifest  Convert a list of dnanexus file identifiers into a dxfuse manifest file
-  csvaddp               Add a P column to a CSV file based on a LOG10P column
   help                  Print this message or the help of the given subcommand(s)
 
 Options:
   -h, --help     Print help
   -V, --version  Print version
+```
+
+```
+❯ gu csvaddp -h
+Add a P column to a CSV file based on a LOG10P column
+
+Usage: gu csvaddp -i infile.regenie[.gz] -o outfile.regenie[.gz]
+
+Options:
+  -i, --input <INPUT>    Regenie file to process (can be gzipped if filename ends with .gz) [default: stdin]
+  -d, --delim <DELIM>    Delimiter for CSV file reading and writing [default: auto]
+      --log10p <LOG10P>  Column name for the LOG10P values [default: LOG10P]
+  -o, --output <OUTPUT>  Output file to write with added p-value column (will be gzipped if filename ends with .gz) [default: stdout]
+  -h, --help             Print help
+  -V, --version          Print version
 ```
 
 ```
@@ -153,19 +169,4 @@ Options:
   -o, --output <OUTPUT>        JSON file to write the manifest to
   -h, --help                   Print help
   -V, --version                Print version
-```
-
-```
-❯ gu csvaddp -h
-Add a P column to a CSV file based on a LOG10P column
-
-Usage: gu csvaddp -i infile.regenie[.gz] -o outfile.regenie[.gz]
-
-Options:
-  -i, --input <INPUT>    Regenie file to process (can be gzipped if filename ends with .gz) [default: stdin]
-  -d, --delim <DELIM>    Delimiter for CSV file reading and writing [default: auto]
-      --log10p <LOG10P>  Column name for the LOG10P values [default: LOG10P]
-  -o, --output <OUTPUT>  Output file to write with added p-value column (will be gzipped if filename ends with .gz) [default: stdout]
-  -h, --help             Print help
-  -V, --version          Print version
 ```

@@ -57,26 +57,26 @@ fn run() -> Result<(), SubcommandError> {
 
     add_subcommands!(
         cmd,
+        csvaddp,
         csvconcat,
         csvdelim,
         csvfilter,
         csvselect,
         csvsplit,
-        make_dxfuse_manifest,
-        csvaddp
+        make_dxfuse_manifest
     );
 
     let matches = cmd.get_matches();
 
     match_subcommand!(
         matches,
+        csvaddp,
         csvconcat,
         csvdelim,
         csvfilter,
         csvselect,
         csvsplit,
-        make_dxfuse_manifest,
-        csvaddp
+        make_dxfuse_manifest
     )
 }
 
