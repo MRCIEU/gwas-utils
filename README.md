@@ -1,18 +1,20 @@
 # gwas-utils
 
-`gu` - consists of a set of utilities which were written to do GWAS-related things in cloud environments. 
+`gu` consists of a set of utilities which were written to do GWAS-related things in cloud environments. 
 
 It compiles to a single (maybe totally self-contained / static) binary, so it comes without the (computational, resource, cognitive) overhead of maintaining a python / R installation + libraries (but also lacks their flexibility). A distroless docker image compiled on Alpine Linux using the Dockerfile in this repo gzips to ~1.3MB in size on disk. 
 
 The utilities (subcommands under `gu`) and their usage are described below.
 
-## subcommands
+## Subcommands
 
 `csvaddp` - Add a P column to a CSV file based on a LOG10P column
 
 `csvconcat` - Concatenate multiple CSV output files into a single file
 
-`csvfilter` - Filter a CSV file based on logical expressions
+`csvdelim`  - Change the delimeter of a CSV file
+
+`csvfilter` - Filter the rows of a CSV file based on logical expressions
 
 `csvselect` - Subset a CSV file to specific columns
 
@@ -112,10 +114,25 @@ Options:
 ```
 
 ```
+❯ gu csvdelim -h
+Change the delimeter of a CSV file
+
+Usage: gu csvdelim -i infile.csv[.gz] -d"\t" -o outfile.csv[.gz]
+
+Options:
+  -i, --input <INPUT>    CSV file to process (can be gzipped if filename ends with .gz) [default: stdin]
+  -d, --delim <DELIM>    Delimiter for OUTPUT CSV file
+      --din <DIN>        Delimiter for INPUT CSV file [default: auto]
+  -o, --output <OUTPUT>  Re-delimetered CSV file to write (will be gzipped if filename ends with .gz) [default: stdout]
+  -h, --help             Print help
+  -V, --version          Print version
+```
+
+```
 ❯ gu csvfilter -h
 Filter rows from a CSV file based on column-specific expressions
 
-Usage: gu csvfilter -i infile.csv[.gz] -e 'sex == male' 'age > 5' ... -o filtered.csv[.gz]
+Usage: gu csvfilter -i infile.csv[.gz] -e 'sex == male' 'age > 5' ... -o outfile.csv[.gz]
 
 Options:
   -i, --input <INPUT>               Input CSV file (can be gzipped if filename ends with .gz) [default: stdin]
@@ -146,7 +163,7 @@ Options:
 ❯ gu csvsplit -h
 Split a CSV file into multiple files based on unique values in a specified categorical column
 
-Usage: gu csvsplit -i infile.csv[.gz] -c colname
+Usage: gu csvsplit -i infile.csv[.gz] -c colname -o outfile.csv[.gz]
 
 Options:
   -i, --input <INPUT>    Input CSV file (can be gzipped if filename ends with .gz) [default: stdin]
