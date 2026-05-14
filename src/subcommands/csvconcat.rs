@@ -5,7 +5,7 @@ use std::io;
 use gwas_utils::{GuError, Result, get_delimeter_from_cli_argument, open_reader, open_writer};
 
 pub(crate) const USAGE: &str =
-    "gu csv_concat_files -i infile1.csv[.gz] infile2.csv[.gz] ... -o outfile.csv[.gz]";
+    "gu csvconcat -i infile1.csv[.gz] infile2.csv[.gz] ... -o outfile.csv[.gz]";
 pub(crate) const ABOUT: &str = "Concatenate multiple CSV files into a single file";
 
 #[derive(Parser, Debug)]

@@ -8,17 +8,17 @@ The utilities (subcommands under `gu`) and their usage are described below.
 
 ## subcommands
 
-`csv_concat_files` - Concatenate multiple CSV output files into a single file
+`csvconcat` - Concatenate multiple CSV output files into a single file
 
-`csv_filter_rows` - Filter a CSV file based on logical expressions
+`csvfilter` - Filter a CSV file based on logical expressions
 
-`csv_select_columns` - Subset a CSV file to specific columns
+`csvselect` - Subset a CSV file to specific columns
 
-`csv_split_on_categorical_column` - Split a CSV file into multiple output files based on the categories in a specified column
+`csvsplitn` - Split a CSV file into multiple output files based on the categories in a specified column
 
-`dnanexus_make_dxfuse_manifest` - Convert a list of DNAnexus file identifiers into a dxfuse manifest file
+`make_dxfuse_manifest` - Convert a list of DNAnexus file identifiers into a dxfuse manifest file
 
-`regenie_add_pval_col` - Add a P column to a Regenie output file based on the LOG10P column
+`csvaddp` - Add a P column to a CSV file based on a LOG10P column
 
 ## Installation
 
@@ -68,13 +68,13 @@ cargo build --release --target x86_64-unknown-linux-musl
 Usage: gu <COMMAND>
 
 Commands:
-  csv_concat_files                 Concatenate multiple CSV files into a single file
-  csv_filter_rows                  Filter rows from a CSV file based on column-specific expressions
-  csv_select_columns               Select specific columns from a CSV file
-  csv_split_on_categorical_column  Split a CSV file into multiple files based on unique values in a specified categorical column
-  dnanexus_make_dxfuse_manifest    Convert a list of dnanexus file identifiers into a dxfuse manifest file
-  regenie_add_pval_col             Add a P column to a Regenie output file based on the LOG10P column
-  help                             Print this message or the help of the given subcommand(s)
+  csvconcat             Concatenate multiple CSV files into a single file
+  csvfilter             Filter rows from a CSV file based on column-specific expressions
+  csvselect             Select specific columns from a CSV file
+  csvsplit              Split a CSV file into multiple files based on unique values in a specified categorical column
+  make_dxfuse_manifest  Convert a list of dnanexus file identifiers into a dxfuse manifest file
+  csvaddp               Add a P column to a CSV file based on a LOG10P column
+  help                  Print this message or the help of the given subcommand(s)
 
 Options:
   -h, --help     Print help
@@ -82,10 +82,10 @@ Options:
 ```
 
 ```
-❯ gu csv_concat_files -h
+❯ gu csvconcat -h
 Concatenate multiple CSV files into a single file
 
-Usage: gu csv_concat_files -i infile1.csv[.gz] infile2.csv[.gz] ... -o outfile.csv[.gz]
+Usage: gu csvconcat -i infile1.csv[.gz] infile2.csv[.gz] ... -o outfile.csv[.gz]
 
 Options:
   -i, --input <INPUT>...  CSV files to concatenate (can be gzipped if filenames end with .gz)
@@ -96,10 +96,10 @@ Options:
 ```
 
 ```
-❯ gu csv_filter_rows -h
+❯ gu csvfilter -h
 Filter rows from a CSV file based on column-specific expressions
 
-Usage: gu csv_filter_rows -i infile.csv[.gz] -e 'sex == male' 'age > 5' ... -o filtered.csv[.gz]
+Usage: gu csvfilter -i infile.csv[.gz] -e 'sex == male' 'age > 5' ... -o filtered.csv[.gz]
 
 Options:
   -i, --input <INPUT>               Input CSV file (can be gzipped if filename ends with .gz) [default: stdin]
@@ -112,10 +112,10 @@ Options:
 ```
 
 ```
-❯ gu csv_select_columns -h
+❯ gu csvselect -h
 Select specific columns from a CSV file
 
-Usage: gu csv_select_columns -i infile.csv[.gz] -c <column1 column2 ...> -o outfile.csv[.gz]
+Usage: gu csvselect -i infile.csv[.gz] -c <column1 column2 ...> -o outfile.csv[.gz]
 
 Options:
   -i, --input <INPUT>         Input CSV file to process (can be gzipped if filename ends with .gz) [default: stdin]
@@ -127,10 +127,10 @@ Options:
 ```
 
 ```
-❯ gu csv_split_on_categorical_column -h
+❯ gu csvsplit -h
 Split a CSV file into multiple files based on unique values in a specified categorical column
 
-Usage: gu csv_split_on_categorical_column -i infile.csv[.gz] -c colname
+Usage: gu csvsplit -i infile.csv[.gz] -c colname
 
 Options:
   -i, --input <INPUT>    Input CSV file (can be gzipped if filename ends with .gz) [default: stdin]
@@ -142,10 +142,10 @@ Options:
 ```
 
 ```
-❯ gu dnanexus_make_dxfuse_manifest -h
+❯ gu make_dxfuse_manifest -h
 Convert a list of dnanexus file identifiers into a dxfuse manifest file
 
-Usage: gu dnanexus_make_dxfuse_manifest -f "file-xxxx" "file-yyyy" ... -p ${DX_PROJECT_CONTEXT_ID} -o manifest.json
+Usage: gu make_dxfuse_manifest -f "file-xxxx" "file-yyyy" ... -p ${DX_PROJECT_CONTEXT_ID} -o manifest.json
 
 Options:
   -f, --fileids <FILEIDS>...   A list of dnanexus file identifiers (file-xxxx, {$dnanexus_link: file-yyyy}, etc.) to include in the manifest
@@ -156,14 +156,15 @@ Options:
 ```
 
 ```
-❯ gu regenie_add_pval_col -h
-Add a P column to a Regenie output file based on the LOG10P column
+❯ gu csvaddp -h
+Add a P column to a CSV file based on a LOG10P column
 
-Usage: gu regenie_add_pval_col -i infile.regenie[.gz] -o outfile.regenie[.gz]
+Usage: gu csvaddp -i infile.regenie[.gz] -o outfile.regenie[.gz]
 
 Options:
   -i, --input <INPUT>    Regenie file to process (can be gzipped if filename ends with .gz) [default: stdin]
   -d, --delim <DELIM>    Delimiter for CSV file reading and writing [default: auto]
+      --log10p <LOG10P>  Column name for the LOG10P values [default: LOG10P]
   -o, --output <OUTPUT>  Output file to write with added p-value column (will be gzipped if filename ends with .gz) [default: stdout]
   -h, --help             Print help
   -V, --version          Print version

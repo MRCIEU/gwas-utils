@@ -7,7 +7,7 @@ use std::io::BufWriter;
 
 use gwas_utils::Result;
 
-pub(crate) const USAGE: &str = "gu dnanexus_make_dxfuse_manifest -f \"file-xxxx\" \"file-yyyy\" ... -p ${DX_PROJECT_CONTEXT_ID} -o manifest.json";
+pub(crate) const USAGE: &str = "gu make_dxfuse_manifest -f \"file-xxxx\" \"file-yyyy\" ... -p ${DX_PROJECT_CONTEXT_ID} -o manifest.json";
 pub(crate) const ABOUT: &str =
     "Convert a list of dnanexus file identifiers into a dxfuse manifest file";
 

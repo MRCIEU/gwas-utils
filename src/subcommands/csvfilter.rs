@@ -4,7 +4,7 @@ use std::io;
 use gwas_utils::{GuError, Result, get_delimeter_from_cli_argument, open_reader, open_writer};
 
 pub(crate) const USAGE: &str =
-    "gu csv_filter_rows -i infile.csv[.gz] -e 'sex == male' 'age > 5' ... -o filtered.csv[.gz]";
+    "gu csvfilter -i infile.csv[.gz] -e 'sex == male' 'age > 5' ... -o filtered.csv[.gz]";
 pub(crate) const ABOUT: &str = "Filter rows from a CSV file based on column-specific expressions";
 
 #[derive(Parser, Debug)]

@@ -4,7 +4,7 @@ use std::io;
 use gwas_utils::{GuError, Result, get_delimeter_from_cli_argument, open_reader, open_writer};
 
 pub(crate) const USAGE: &str =
-    "gu csv_select_columns -i infile.csv[.gz] -c <column1 column2 ...> -o outfile.csv[.gz]";
+    "gu csvselect -i infile.csv[.gz] -c <column1 column2 ...> -o outfile.csv[.gz]";
 pub(crate) const ABOUT: &str = "Select specific columns from a CSV file";
 
 #[derive(Parser, Debug)]

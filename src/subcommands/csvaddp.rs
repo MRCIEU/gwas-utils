@@ -3,13 +3,12 @@ use std::io;
 
 use gwas_utils::{GuError, Result, get_delimeter_from_cli_argument, open_reader, open_writer};
 
-pub(crate) const USAGE: &str =
-    "gu regenie_add_pval_col -i infile.regenie[.gz] -o outfile.regenie[.gz]";
-pub(crate) const ABOUT: &str = "Add a P column to a Regenie output file based on the LOG10P column";
+pub(crate) const USAGE: &str = "gu csvaddp -i infile.regenie[.gz] -o outfile.regenie[.gz]";
+pub(crate) const ABOUT: &str = "Add a P column to a CSV file based on a LOG10P column";
 
 #[derive(Parser, Debug)]
 pub(crate) struct Args {
-    /// Regenie file to process (can be gzipped if filename ends with .gz)
+    /// CSV file to process (can be gzipped if filename ends with .gz)
     #[arg(short, long, default_value = "stdin")]
     input: String,
 
@@ -17,27 +16,33 @@ pub(crate) struct Args {
     #[arg(short, long, default_value = "auto")]
     delim: String,
 
+    /// Column name for the LOG10P values
+    #[arg(long, default_value = "LOG10P")]
+    log10p: String,
+
     /// Output file to write with added p-value column (will be gzipped if filename ends with .gz)
     #[arg(short, long, default_value = "stdout")]
     output: String,
 }
 
 pub(crate) fn run(args: Args) -> Result<()> {
-    let (file_rdr, file_wtr, sep) = handle_commandline_args(args)?;
-    process_file(file_rdr, file_wtr, sep)
+    let (file_rdr, file_wtr, sep, log10p_col) = handle_commandline_args(args)?;
+    process_file(file_rdr, file_wtr, sep, log10p_col)
 }
 
-fn handle_commandline_args(args: Args) -> Result<(gwas_utils::Reader, gwas_utils::Writer, char)> {
+fn handle_commandline_args(
+    args: Args,
+) -> Result<(gwas_utils::Reader, gwas_utils::Writer, char, String)> {
     let mut file_rdr = open_reader(&args.input)?;
     let file_wtr = open_writer(&args.output)?;
     let sep = match args.delim.as_str() {
         "auto" => file_rdr.sniff()?,
         _ => get_delimeter_from_cli_argument(&args.delim)?,
     };
-    Ok((file_rdr, file_wtr, sep))
+    Ok((file_rdr, file_wtr, sep, args.log10p))
 }
 
-fn process_file<R, W>(rdr: R, wtr: W, sep: char) -> Result<()>
+fn process_file<R, W>(rdr: R, wtr: W, sep: char, log10_p_col: String) -> Result<()>
 where
     R: io::Read,
     W: io::Write,
@@ -51,7 +56,7 @@ where
 
     let log10_p_col_idx = header
         .iter()
-        .position(|h| h == "LOG10P")
+        .position(|h| h == log10_p_col)
         .ok_or(GuError::Message(
             "Couldn't find LOG10P column in file header".into(),
         ))?;
@@ -115,7 +120,7 @@ mod tests {
     fn test_add_p_to_file() {
         let file_rdr = open_reader("testdata/small.concat.regenie").unwrap();
         let mut wtr = Cursor::new(Vec::new());
-        process_file(file_rdr, &mut wtr, ' ').unwrap();
+        process_file(file_rdr, &mut wtr, ' ', "LOG10P".to_string()).unwrap();
         let desired_result = fs::read_to_string("testdata/small.concat.P.regenie").unwrap();
         let result = String::from_utf8(wtr.into_inner()).unwrap();
         assert_eq!(result, desired_result);

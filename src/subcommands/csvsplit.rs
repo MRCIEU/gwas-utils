@@ -4,7 +4,7 @@ use std::io;
 
 use gwas_utils::{GuError, Result, get_delimeter_from_cli_argument, open_reader, open_writer};
 
-pub(crate) const USAGE: &str = "gu csv_split_on_categorical_column -i infile.csv[.gz] -c colname";
+pub(crate) const USAGE: &str = "gu csvsplit -i infile.csv[.gz] -c colname";
 pub(crate) const ABOUT: &str =
     "Split a CSV file into multiple files based on unique values in a specified categorical column";
 

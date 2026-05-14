@@ -57,24 +57,24 @@ fn run() -> Result<(), SubcommandError> {
 
     add_subcommands!(
         cmd,
-        csv_concat_files,
-        csv_filter_rows,
-        csv_select_columns,
-        csv_split_on_categorical_column,
-        dnanexus_make_dxfuse_manifest,
-        regenie_add_pval_col
+        csvconcat,
+        csvfilter,
+        csvselect,
+        csvsplit,
+        make_dxfuse_manifest,
+        csvaddp
     );
 
     let matches = cmd.get_matches();
 
     match_subcommand!(
         matches,
-        csv_concat_files,
-        csv_filter_rows,
-        csv_select_columns,
-        csv_split_on_categorical_column,
-        dnanexus_make_dxfuse_manifest,
-        regenie_add_pval_col
+        csvconcat,
+        csvfilter,
+        csvselect,
+        csvsplit,
+        make_dxfuse_manifest,
+        csvaddp
     )
 }
 
