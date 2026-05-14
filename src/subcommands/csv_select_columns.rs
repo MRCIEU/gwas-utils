@@ -1,8 +1,7 @@
 use clap::Parser;
-use std::error::Error;
 use std::io;
 
-use gwas_utils::{get_delimeter_from_cli_argument, open_reader, open_writer};
+use gwas_utils::{GuError, Result, get_delimeter_from_cli_argument, open_reader, open_writer};
 
 pub(crate) const USAGE: &str =
     "gu csv_select_columns -i infile.csv[.gz] -c <column1 column2 ...> -o outfile.csv[.gz]";
@@ -27,14 +26,14 @@ pub(crate) struct Args {
     output: String,
 }
 
-pub(crate) fn run(args: Args) -> Result<(), Box<dyn Error>> {
+pub(crate) fn run(args: Args) -> Result<()> {
     let (file_rdr, file_wtr, columns_to_select, sep) = handle_commandline_args(args)?;
     process_file(file_rdr, file_wtr, columns_to_select, sep)
 }
 
 fn handle_commandline_args(
     args: Args,
-) -> Result<(gwas_utils::Reader, gwas_utils::Writer, Vec<String>, char), Box<dyn Error>> {
+) -> Result<(gwas_utils::Reader, gwas_utils::Writer, Vec<String>, char)> {
     let mut file_rdr = open_reader(&args.input)?;
     let file_wtr = open_writer(&args.output)?;
     let sep = match args.delim.as_str() {
@@ -44,12 +43,7 @@ fn handle_commandline_args(
     Ok((file_rdr, file_wtr, args.columns, sep))
 }
 
-fn process_file<R, W>(
-    rdr: R,
-    wtr: W,
-    columns_to_select: Vec<String>,
-    sep: char,
-) -> Result<(), Box<dyn Error>>
+fn process_file<R, W>(rdr: R, wtr: W, columns_to_select: Vec<String>, sep: char) -> Result<()>
 where
     R: io::Read,
     W: io::Write,
@@ -72,7 +66,7 @@ where
         .map(|&i| &header[i])
         .collect::<Vec<_>>();
     if header_reduced.is_empty() {
-        return Err("No matching columns found".into());
+        return Err(GuError::Message("No matching columns found".into()));
     }
 
     let mut csv_wtr = csv::WriterBuilder::new()

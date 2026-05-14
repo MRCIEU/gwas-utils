@@ -1,10 +1,11 @@
 use clap::Parser;
 use regex::Regex;
 use serde_json::json;
-use std::error::Error;
 use std::fs::File;
 use std::io;
 use std::io::BufWriter;
+
+use gwas_utils::Result;
 
 pub(crate) const USAGE: &str = "gu dnanexus_make_dxfuse_manifest -f \"file-xxxx\" \"file-yyyy\" ... -p ${DX_PROJECT_CONTEXT_ID} -o manifest.json";
 pub(crate) const ABOUT: &str =
@@ -25,7 +26,7 @@ pub(crate) struct Args {
     output: String,
 }
 
-pub(crate) fn run(args: Args) -> Result<(), Box<dyn Error>> {
+pub(crate) fn run(args: Args) -> Result<()> {
     let (raw_strings, project_id, file_wtr) = handle_commandline_args(args)?;
     process_strings(raw_strings, project_id, file_wtr)?;
     Ok(())
@@ -33,16 +34,12 @@ pub(crate) fn run(args: Args) -> Result<(), Box<dyn Error>> {
 
 pub(crate) fn handle_commandline_args(
     args: Args,
-) -> Result<(Vec<String>, String, BufWriter<File>), Box<dyn Error>> {
+) -> Result<(Vec<String>, String, BufWriter<File>)> {
     let wtr = BufWriter::new(File::create(&args.output)?);
     Ok((args.fileids, args.projectid, wtr))
 }
 
-fn process_strings<W>(
-    raw_strings: Vec<String>,
-    project_id: String,
-    mut wtr: W,
-) -> Result<(), Box<dyn Error>>
+fn process_strings<W>(raw_strings: Vec<String>, project_id: String, mut wtr: W) -> Result<()>
 where
     W: io::Write,
 {

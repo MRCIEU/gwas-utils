@@ -1,9 +1,8 @@
 use clap::Parser;
 use std::collections::HashMap;
-use std::error::Error;
 use std::io;
 
-use gwas_utils::{get_delimeter_from_cli_argument, open_reader, open_writer};
+use gwas_utils::{GuError, Result, get_delimeter_from_cli_argument, open_reader, open_writer};
 
 pub(crate) const USAGE: &str = "gu csv_split_on_categorical_column -i infile.csv[.gz] -c colname";
 pub(crate) const ABOUT: &str =
@@ -28,15 +27,13 @@ pub(crate) struct Args {
     suffix: String,
 }
 
-pub(crate) fn run(args: Args) -> Result<(), Box<dyn Error>> {
+pub(crate) fn run(args: Args) -> Result<()> {
     let (file_rdr, column_to_split_on, sep, suffix) = handle_commandline_args(args)?;
     process_file(file_rdr, column_to_split_on, sep, suffix)?;
     Ok(())
 }
 
-fn handle_commandline_args(
-    args: Args,
-) -> Result<(gwas_utils::Reader, String, char, String), Box<dyn Error>> {
+fn handle_commandline_args(args: Args) -> Result<(gwas_utils::Reader, String, char, String)> {
     let mut file_rdr = open_reader(&args.input)?;
     let sep = match args.delim.as_str() {
         "auto" => file_rdr.sniff()?,
@@ -45,12 +42,7 @@ fn handle_commandline_args(
     Ok((file_rdr, args.column, sep, args.suffix))
 }
 
-fn process_file<R>(
-    rdr: R,
-    column_to_split_on: String,
-    sep: char,
-    suffix: String,
-) -> Result<(), Box<dyn Error>>
+fn process_file<R>(rdr: R, column_to_split_on: String, sep: char, suffix: String) -> Result<()>
 where
     R: io::Read,
 {
@@ -60,22 +52,24 @@ where
         .from_reader(rdr);
 
     let header = csv_rdr.headers()?.clone();
-    let column_index = header
-        .iter()
-        .position(|h| h == column_to_split_on)
-        .ok_or(format!(
-            "Column '{}' not found in CSV headers",
-            column_to_split_on
-        ))?;
+    let column_index =
+        header
+            .iter()
+            .position(|h| h == column_to_split_on)
+            .ok_or(GuError::Message(format!(
+                "Column '{}' not found in CSV headers",
+                column_to_split_on
+            )))?;
 
     let mut file_handles: HashMap<String, csv::Writer<gwas_utils::Writer>> = HashMap::new();
     for result in csv_rdr.records() {
         let record = result?;
         if let Some(value) = record.get(column_index) {
             if file_handles.contains_key(value) {
-                let csv_wtr = file_handles
-                    .get_mut(value)
-                    .ok_or(format!("Failed to get file handle for value '{}'", value))?;
+                let csv_wtr = file_handles.get_mut(value).ok_or(GuError::Message(format!(
+                    "Failed to get file handle for value '{}'",
+                    value
+                )))?;
                 csv_wtr.write_record(&record)?;
             } else {
                 let file_handle = format!("{}.{}.{}", column_to_split_on, value, suffix);

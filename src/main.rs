@@ -1,7 +1,8 @@
 use clap::{Command, CommandFactory, FromArgMatches, crate_version};
 
-mod subcommands;
+use gwas_utils::{GuError, handle_broken_pipe};
 
+mod subcommands;
 use crate::subcommands::*;
 
 macro_rules! add_subcommands {
@@ -34,30 +35,13 @@ macro_rules! match_subcommand {
 }
 
 struct SubcommandError {
-    source: Box<dyn std::error::Error>,
+    source: GuError,
     usage: &'static str,
-}
-
-impl std::fmt::Debug for SubcommandError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Display::fmt(self, f)
-    }
-}
-
-impl std::fmt::Display for SubcommandError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.source)
-    }
-}
-
-impl std::error::Error for SubcommandError {
-    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-        Some(&*self.source)
-    }
 }
 
 fn main() {
     if let Err(err) = run() {
+        handle_broken_pipe(&err.source);
         eprintln!("Error: {}", err.source);
         eprintln!("Usage: {}", err.usage);
         std::process::exit(1);
@@ -96,7 +80,7 @@ fn run() -> Result<(), SubcommandError> {
 
 fn run_subcommand(
     usage: &'static str,
-    execute: impl FnOnce() -> Result<(), Box<dyn std::error::Error>>,
+    execute: impl FnOnce() -> Result<(), GuError>,
 ) -> Result<(), SubcommandError> {
     execute().map_err(|source| SubcommandError { source, usage })
 }

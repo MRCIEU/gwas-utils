@@ -1,9 +1,8 @@
 use clap::Parser;
 use csv::StringRecord;
-use std::error::Error;
 use std::io;
 
-use gwas_utils::{get_delimeter_from_cli_argument, open_reader, open_writer};
+use gwas_utils::{GuError, Result, get_delimeter_from_cli_argument, open_reader, open_writer};
 
 pub(crate) const USAGE: &str =
     "gu csv_concat_files -i infile1.csv[.gz] infile2.csv[.gz] ... -o outfile.csv[.gz]";
@@ -24,15 +23,13 @@ pub(crate) struct Args {
     output: String,
 }
 
-pub(crate) fn run(args: Args) -> Result<(), Box<dyn Error>> {
+pub(crate) fn run(args: Args) -> Result<()> {
     let (ifilenames, file_wtr, sep) = handle_commandline_args(args)?;
     process_files(ifilenames, file_wtr, sep)?;
     Ok(())
 }
 
-fn handle_commandline_args(
-    args: Args,
-) -> Result<(Vec<String>, gwas_utils::Writer, char), Box<dyn Error>> {
+fn handle_commandline_args(args: Args) -> Result<(Vec<String>, gwas_utils::Writer, char)> {
     let file_wtr: gwas_utils::Writer = open_writer(&args.output)?;
     let sep = match args.delim.as_str() {
         "auto" => {
@@ -43,11 +40,13 @@ fn handle_commandline_args(
                     let mut file_rdr = open_reader(filename)?;
                     file_rdr.sniff()
                 })
-                .collect::<Result<Vec<char>, Box<dyn Error>>>()?;
+                .collect::<Result<Vec<char>>>()?;
             if seps.iter().all(|&s| s == seps[0]) {
                 seps[0]
             } else {
-                return Err("Inconsistent delimiters across input files".into());
+                return Err(GuError::Message(
+                    "Inconsistent delimiters across input files".into(),
+                ));
             }
         }
         _ => get_delimeter_from_cli_argument(&args.delim)?,
@@ -55,7 +54,7 @@ fn handle_commandline_args(
     Ok((args.input, file_wtr, sep))
 }
 
-fn process_files<W>(ifilenames: Vec<String>, wtr: W, sep: char) -> Result<(), Box<dyn Error>>
+fn process_files<W>(ifilenames: Vec<String>, wtr: W, sep: char) -> Result<()>
 where
     W: io::Write,
 {
@@ -77,7 +76,7 @@ where
         } else {
             let header = csv_rdr.headers()?.clone();
             if header != index_header {
-                return Err("Mismatched headers in input files".into());
+                return Err(GuError::Message("Mismatched headers in input files".into()));
             }
         }
         for result in csv_rdr.records() {

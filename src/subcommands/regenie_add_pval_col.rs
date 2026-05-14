@@ -1,8 +1,7 @@
 use clap::Parser;
-use std::error::Error;
 use std::io;
 
-use gwas_utils::{get_delimeter_from_cli_argument, open_reader, open_writer};
+use gwas_utils::{GuError, Result, get_delimeter_from_cli_argument, open_reader, open_writer};
 
 pub(crate) const USAGE: &str =
     "gu regenie_add_pval_col -i infile.regenie[.gz] -o outfile.regenie[.gz]";
@@ -23,14 +22,12 @@ pub(crate) struct Args {
     output: String,
 }
 
-pub(crate) fn run(args: Args) -> Result<(), Box<dyn Error>> {
+pub(crate) fn run(args: Args) -> Result<()> {
     let (file_rdr, file_wtr, sep) = handle_commandline_args(args)?;
     process_file(file_rdr, file_wtr, sep)
 }
 
-fn handle_commandline_args(
-    args: Args,
-) -> Result<(gwas_utils::Reader, gwas_utils::Writer, char), Box<dyn Error>> {
+fn handle_commandline_args(args: Args) -> Result<(gwas_utils::Reader, gwas_utils::Writer, char)> {
     let mut file_rdr = open_reader(&args.input)?;
     let file_wtr = open_writer(&args.output)?;
     let sep = match args.delim.as_str() {
@@ -40,7 +37,7 @@ fn handle_commandline_args(
     Ok((file_rdr, file_wtr, sep))
 }
 
-fn process_file<R, W>(rdr: R, wtr: W, sep: char) -> Result<(), Box<dyn Error>>
+fn process_file<R, W>(rdr: R, wtr: W, sep: char) -> Result<()>
 where
     R: io::Read,
     W: io::Write,
@@ -55,7 +52,9 @@ where
     let log10_p_col_idx = header
         .iter()
         .position(|h| h == "LOG10P")
-        .ok_or("Couldn't find LOG10P column in file header")?;
+        .ok_or(GuError::Message(
+            "Couldn't find LOG10P column in file header".into(),
+        ))?;
 
     header.push_field("P");
 

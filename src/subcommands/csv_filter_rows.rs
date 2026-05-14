@@ -1,8 +1,7 @@
 use clap::Parser;
-use std::error::Error;
 use std::io;
 
-use gwas_utils::{get_delimeter_from_cli_argument, open_reader, open_writer};
+use gwas_utils::{GuError, Result, get_delimeter_from_cli_argument, open_reader, open_writer};
 
 pub(crate) const USAGE: &str =
     "gu csv_filter_rows -i infile.csv[.gz] -e 'sex == male' 'age > 5' ... -o filtered.csv[.gz]";
@@ -31,23 +30,20 @@ pub(crate) struct Args {
     output: String,
 }
 
-pub(crate) fn run(args: Args) -> Result<(), Box<dyn Error>> {
+pub(crate) fn run(args: Args) -> Result<()> {
     let (file_rdr, file_wtr, sep, filters, any) = handle_commandline_args(args)?;
     process_file(file_rdr, file_wtr, sep, filters, any)
 }
 
 fn handle_commandline_args(
     args: Args,
-) -> Result<
-    (
-        gwas_utils::Reader,
-        gwas_utils::Writer,
-        char,
-        Vec<ColumnFilter>,
-        bool,
-    ),
-    Box<dyn Error>,
-> {
+) -> Result<(
+    gwas_utils::Reader,
+    gwas_utils::Writer,
+    char,
+    Vec<ColumnFilter>,
+    bool,
+)> {
     let mut file_rdr = open_reader(&args.input)?;
     let file_wtr = open_writer(&args.output)?;
     let sep = match args.delim.as_str() {
@@ -68,7 +64,7 @@ enum Operator {
 }
 
 impl Operator {
-    fn from_str(op_str: &str) -> Result<Self, Box<dyn Error>> {
+    fn from_str(op_str: &str) -> Result<Self> {
         match op_str {
             "==" => Ok(Operator::Equal),
             "!=" => Ok(Operator::NotEqual),
@@ -76,11 +72,14 @@ impl Operator {
             "<" => Ok(Operator::LessThan),
             ">=" => Ok(Operator::GreaterThanOrEqual),
             "<=" => Ok(Operator::LessThanOrEqual),
-            _ => Err(format!("Unsupported operator: {}", op_str).into()),
+            _ => Err(GuError::Message(format!(
+                "Unsupported operator: {}",
+                op_str
+            ))),
         }
     }
 
-    fn compare(&self, left: &str, right: &str) -> Result<bool, Box<dyn Error>> {
+    fn compare(&self, left: &str, right: &str) -> Result<bool> {
         let left_num = left.parse::<f64>();
         let right_num = right.parse::<f64>();
 
@@ -97,7 +96,18 @@ impl Operator {
             match self {
                 Operator::Equal => Ok(left == right),
                 Operator::NotEqual => Ok(left != right),
-                _ => Err("Invalid operator for non-numeric values".into()),
+                Operator::GreaterThan => Err(GuError::Message(
+                    "Invalid operator for non-numeric values".into(),
+                )),
+                Operator::LessThan => Err(GuError::Message(
+                    "Invalid operator for non-numeric values".into(),
+                )),
+                Operator::GreaterThanOrEqual => Err(GuError::Message(
+                    "Invalid operator for non-numeric values".into(),
+                )),
+                Operator::LessThanOrEqual => Err(GuError::Message(
+                    "Invalid operator for non-numeric values".into(),
+                )),
             }
         }
     }
@@ -110,14 +120,14 @@ struct ColumnFilter {
     value: String,
 }
 
-fn parse_filters(expressions: Vec<String>) -> Result<Vec<ColumnFilter>, Box<dyn Error>> {
+fn parse_filters(expressions: Vec<String>) -> Result<Vec<ColumnFilter>> {
     expressions
         .into_iter()
         .map(|expr| parse_filter(&expr))
         .collect()
 }
 
-fn parse_filter(expr: &str) -> Result<ColumnFilter, Box<dyn Error>> {
+fn parse_filter(expr: &str) -> Result<ColumnFilter> {
     let operators = ["==", "!=", ">=", "<=", ">", "<"];
     for op in operators {
         if let Some(idx) = expr.find(op) {
@@ -132,7 +142,10 @@ fn parse_filter(expr: &str) -> Result<ColumnFilter, Box<dyn Error>> {
             });
         }
     }
-    Err(format!("Invalid expression format: {}", expr).into())
+    Err(GuError::Message(format!(
+        "Invalid expression format: {}",
+        expr
+    )))
 }
 
 fn process_file<R, W>(
@@ -141,7 +154,7 @@ fn process_file<R, W>(
     sep: char,
     mut filters: Vec<ColumnFilter>,
     any: bool,
-) -> Result<(), Box<dyn Error>>
+) -> Result<()>
 where
     R: io::Read,
     W: io::Write,
@@ -155,13 +168,14 @@ where
 
     // Set column indices for filters based on header
     for filter in &mut filters {
-        filter.column_idx = header
-            .iter()
-            .position(|h| h == filter.column_name)
-            .ok_or(format!(
-                "Column '{}' not found in CSV header",
-                filter.column_name
-            ))?;
+        filter.column_idx =
+            header
+                .iter()
+                .position(|h| h == filter.column_name)
+                .ok_or(GuError::Message(format!(
+                    "Column '{}' not found in CSV header",
+                    filter.column_name
+                )))?;
     }
 
     let mut csv_wtr = csv::WriterBuilder::new()
@@ -177,10 +191,10 @@ where
             .map(|filter| {
                 let value = record
                     .get(filter.column_idx)
-                    .ok_or("Column index out of bounds")?;
+                    .ok_or(GuError::Message("Column index out of bounds".into()))?;
                 filter.operator.compare(value, &filter.value)
             })
-            .collect::<Result<Vec<bool>, Box<dyn Error>>>()?;
+            .collect::<Result<Vec<bool>>>()?;
 
         let keep_row = if any {
             tests.into_iter().any(|b| b)

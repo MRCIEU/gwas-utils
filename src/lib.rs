@@ -1,9 +1,47 @@
 use flate2::Compression;
 use flate2::read::GzDecoder;
 use flate2::write::GzEncoder;
-use std::error::Error;
 use std::fs::File;
-use std::io::{Cursor, Read, Seek, SeekFrom, Write};
+use std::io::{self, Cursor, Read, Seek, SeekFrom, Write};
+use thiserror::Error;
+
+pub type Result<T> = std::result::Result<T, GuError>;
+
+#[derive(Debug, Error)]
+pub enum GuError {
+    #[error(transparent)]
+    IOError(#[from] io::Error),
+    #[error(transparent)]
+    ClapError(#[from] clap::Error),
+    #[error(transparent)]
+    CSVError(#[from] csv::Error),
+    #[error(transparent)]
+    RegexError(#[from] regex::Error),
+    #[error(transparent)]
+    JSONError(#[from] serde_json::Error),
+    #[error(transparent)]
+    ParseFloatError(#[from] std::num::ParseFloatError),
+    #[error("{0}")]
+    Message(String),
+}
+
+pub fn handle_broken_pipe(e: &GuError) {
+    match e {
+        GuError::IOError(io_err) => {
+            if io_err.kind() == std::io::ErrorKind::BrokenPipe {
+                std::process::exit(0);
+            }
+        }
+        GuError::CSVError(e) => {
+            if let csv::ErrorKind::Io(io_err) = e.kind()
+                && io_err.kind() == std::io::ErrorKind::BrokenPipe
+            {
+                std::process::exit(0);
+            }
+        }
+        _ => (),
+    }
+}
 
 pub enum Reader {
     File(std::fs::File),
@@ -24,7 +62,7 @@ impl Read for Reader {
 }
 
 impl Reader {
-    pub fn sniff(&mut self) -> Result<char, Box<dyn Error>> {
+    pub fn sniff(&mut self) -> Result<char> {
         let mut sample = vec![0u8; 8192];
         let n = match self {
             Reader::File(f) => f.read(&mut sample)?,
@@ -34,7 +72,9 @@ impl Reader {
         };
         sample.truncate(n);
         if sample.is_empty() {
-            return Err("Unable to sniff delimiter from empty input".into());
+            return Err(GuError::Message(
+                "Unable to sniff delimiter from empty input".into(),
+            ));
         }
 
         let delim = sniff_delimiter_from_sample(&sample)?;
@@ -63,7 +103,7 @@ impl Reader {
     }
 }
 
-fn sniff_delimiter_from_sample(sample: &[u8]) -> Result<char, Box<dyn Error>> {
+fn sniff_delimiter_from_sample(sample: &[u8]) -> Result<char> {
     let text = String::from_utf8_lossy(sample);
     let candidates = [',', '\t', ';', '|', ' '];
     let mut best: Option<(char, usize)> = None;
@@ -85,8 +125,9 @@ fn sniff_delimiter_from_sample(sample: &[u8]) -> Result<char, Box<dyn Error>> {
         }
     }
 
-    best.map(|(d, _)| d)
-        .ok_or("Unable to detect delimiter from input sample".into())
+    best.map(|(d, _)| d).ok_or(GuError::Message(
+        "Unable to detect delimiter from input sample".into(),
+    ))
 }
 
 fn count_delimiter_outside_quotes(line: &str, delimiter: char) -> usize {
@@ -111,7 +152,7 @@ fn count_delimiter_outside_quotes(line: &str, delimiter: char) -> usize {
     count
 }
 
-pub fn open_reader(filename: &str) -> Result<Reader, Box<dyn Error>> {
+pub fn open_reader(filename: &str) -> Result<Reader> {
     if filename == "stdin" {
         let f = std::io::stdin();
         return Ok(Reader::Stdin(f));
@@ -149,7 +190,7 @@ impl Write for Writer {
     }
 }
 
-pub fn open_writer(filename: &str) -> Result<Writer, Box<dyn Error>> {
+pub fn open_writer(filename: &str) -> Result<Writer> {
     if filename == "stdout" {
         let f = std::io::stdout();
         return Ok(Writer::Stdout(f));
@@ -163,15 +204,15 @@ pub fn open_writer(filename: &str) -> Result<Writer, Box<dyn Error>> {
     }
 }
 
-pub fn get_delimeter_from_cli_argument(sep: &str) -> Result<char, Box<dyn Error>> {
+pub fn get_delimeter_from_cli_argument(sep: &str) -> Result<char> {
     let single_ascii_err = "Delimiter must be a single ASCII character".to_string();
     let c = match sep {
         "\\t" => '\t',
         s if s.chars().count() == 1 => s.chars().next().unwrap(),
-        _ => return Err(single_ascii_err.into()),
+        _ => return Err(GuError::Message(single_ascii_err)),
     };
     if !c.is_ascii() {
-        return Err(single_ascii_err.into());
+        return Err(GuError::Message(single_ascii_err));
     }
     Ok(c)
 }
@@ -180,6 +221,7 @@ pub fn get_delimeter_from_cli_argument(sep: &str) -> Result<char, Box<dyn Error>
 mod tests {
 
     use super::*;
+
     #[test]
     fn test_get_delimiter() {
         assert_eq!(get_delimeter_from_cli_argument("\t").unwrap(), '\t');
