@@ -58,6 +58,7 @@ fn run() -> Result<(), SubcommandError> {
     add_subcommands!(
         cmd,
         csvconcat,
+        csvdelim,
         csvfilter,
         csvselect,
         csvsplit,
@@ -70,6 +71,7 @@ fn run() -> Result<(), SubcommandError> {
     match_subcommand!(
         matches,
         csvconcat,
+        csvdelim,
         csvfilter,
         csvselect,
         csvsplit,
