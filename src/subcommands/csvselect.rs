@@ -9,7 +9,7 @@ pub(crate) const ABOUT: &str = "Select specific columns from a CSV file";
 
 #[derive(Parser, Debug)]
 pub(crate) struct Args {
-    /// Input CSV file to process (can be gzipped if filename ends with .gz)
+    /// CSV file to process (can be gzipped if filename ends with .gz)
     #[arg(short, long, default_value = "stdin")]
     input: String,
 
@@ -21,7 +21,7 @@ pub(crate) struct Args {
     #[arg(short, long, default_value = "auto")]
     delim: String,
 
-    /// Output file to write with selected columns (will be gzipped if filename ends with .gz)
+    /// CSV file to write (will be gzipped if filename ends with .gz)
     #[arg(short, long, default_value = "stdout")]
     output: String,
 }

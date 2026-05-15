@@ -18,7 +18,7 @@ pub(crate) struct Args {
     #[arg(short, long, default_value = "auto")]
     delim: String,
 
-    /// Concatenated CSV file to write (will be gzipped if filename ends with .gz)
+    /// CSV file to write (will be gzipped if filename ends with .gz)
     #[arg(short, long, default_value = "stdout")]
     output: String,
 }

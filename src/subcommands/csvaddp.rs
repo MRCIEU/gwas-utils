@@ -16,11 +16,11 @@ pub(crate) struct Args {
     #[arg(short, long, default_value = "auto")]
     delim: String,
 
-    /// Column name for the LOG10P values
+    /// Name of column containing the LOG10P values
     #[arg(long, default_value = "LOG10P")]
     log10p: String,
 
-    /// Output file to write with added p-value column (will be gzipped if filename ends with .gz)
+    /// CSV file to write (will be gzipped if filename ends with .gz)
     #[arg(short, long, default_value = "stdout")]
     output: String,
 }

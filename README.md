@@ -91,10 +91,10 @@ Add a P column to a CSV file based on a LOG10P column
 Usage: gu csvaddp -i infile.regenie[.gz] -o outfile.regenie[.gz]
 
 Options:
-  -i, --input <INPUT>    Regenie file to process (can be gzipped if filename ends with .gz) [default: stdin]
+  -i, --input <INPUT>    CSV file to process (can be gzipped if filename ends with .gz) [default: stdin]
   -d, --delim <DELIM>    Delimiter for CSV file reading and writing [default: auto]
-      --log10p <LOG10P>  Column name for the LOG10P values [default: LOG10P]
-  -o, --output <OUTPUT>  Output file to write with added p-value column (will be gzipped if filename ends with .gz) [default: stdout]
+      --log10p <LOG10P>  Name of column containing the LOG10P values [default: LOG10P]
+  -o, --output <OUTPUT>  CSV file to write (will be gzipped if filename ends with .gz) [default: stdout]
   -h, --help             Print help
   -V, --version          Print version
 ```
@@ -108,7 +108,7 @@ Usage: gu csvconcat -i infile1.csv[.gz] infile2.csv[.gz] ... -o outfile.csv[.gz]
 Options:
   -i, --input <INPUT>...  CSV files to concatenate (can be gzipped if filenames end with .gz)
   -d, --delim <DELIM>     Delimiter for CSV file reading and writing [default: auto]
-  -o, --output <OUTPUT>   Concatenated CSV file to write (will be gzipped if filename ends with .gz) [default: stdout]
+  -o, --output <OUTPUT>   CSV file to write (will be gzipped if filename ends with .gz) [default: stdout]
   -h, --help              Print help
   -V, --version           Print version
 ```
@@ -123,7 +123,7 @@ Options:
   -i, --input <INPUT>    CSV file to process (can be gzipped if filename ends with .gz) [default: stdin]
   -d, --delim <DELIM>    Delimiter for OUTPUT CSV file
       --din <DIN>        Delimiter for INPUT CSV file [default: auto]
-  -o, --output <OUTPUT>  Re-delimetered CSV file to write (will be gzipped if filename ends with .gz) [default: stdout]
+  -o, --output <OUTPUT>  CSV file to write (will be gzipped if filename ends with .gz) [default: stdout]
   -h, --help             Print help
   -V, --version          Print version
 ```
@@ -135,11 +135,11 @@ Filter rows from a CSV file based on column-specific expressions
 Usage: gu csvfilter -i infile.csv[.gz] -e 'sex == male' 'age > 5' ... -o outfile.csv[.gz]
 
 Options:
-  -i, --input <INPUT>               Input CSV file (can be gzipped if filename ends with .gz) [default: stdin]
+  -i, --input <INPUT>               CSV file to process (can be gzipped if filename ends with .gz) [default: stdin]
   -e, --expression <EXPRESSION>...  Expression(s) to filter rows, in the format "COLUMN-NAME OPERATOR VALUE". Possible operators are: "==", "!=", ">=", "<=", ">", "<"
       --any                         Rows will be included in the output if any expression is true (default is to include rows only if all expressions are true)
   -d, --delim <DELIM>               Delimiter for CSV file reading and writing [default: auto]
-  -o, --output <OUTPUT>             Filtered CSV file to write (will be gzipped if filename ends with .gz) [default: stdout]
+  -o, --output <OUTPUT>             CSV file to write (will be gzipped if filename ends with .gz) [default: stdout]
   -h, --help                        Print help
   -V, --version                     Print version
 ```
@@ -151,10 +151,10 @@ Select specific columns from a CSV file
 Usage: gu csvselect -i infile.csv[.gz] -c <column1 column2 ...> -o outfile.csv[.gz]
 
 Options:
-  -i, --input <INPUT>         Input CSV file to process (can be gzipped if filename ends with .gz) [default: stdin]
+  -i, --input <INPUT>         CSV file to process (can be gzipped if filename ends with .gz) [default: stdin]
   -c, --columns <COLUMNS>...  Column names to select
   -d, --delim <DELIM>         Delimiter for CSV file reading and writing [default: auto]
-  -o, --output <OUTPUT>       Output file to write with selected columns (will be gzipped if filename ends with .gz) [default: stdout]
+  -o, --output <OUTPUT>       CSV file to write (will be gzipped if filename ends with .gz) [default: stdout]
   -h, --help                  Print help
   -V, --version               Print version
 ```
@@ -163,13 +163,13 @@ Options:
 ❯ gu csvsplit -h
 Split a CSV file into multiple files based on unique values in a specified categorical column
 
-Usage: gu csvsplit -i infile.csv[.gz] -c colname -o outfile.csv[.gz]
+Usage: gu csvsplit -i infile.csv[.gz] -c colname
 
 Options:
-  -i, --input <INPUT>    Input CSV file (can be gzipped if filename ends with .gz) [default: stdin]
+  -i, --input <INPUT>    CSV file to process (can be gzipped if filename ends with .gz) [default: stdin]
   -c, --column <COLUMN>  Categorical column name to split on
   -d, --delim <DELIM>    Delimiter for CSV file reading and writing [default: auto]
-  -s, --suffix <SUFFIX>  output suffix to add to output files (default is csv, so output files will be named colname.value.csv) [default: csv]
+  -s, --suffix <SUFFIX>  Suffix to add to output filenames (by default output files will be named "COLNAME.VAL.csv") [default: csv]
   -h, --help             Print help
   -V, --version          Print version
 ```
@@ -181,8 +181,8 @@ Convert a list of dnanexus file identifiers into a dxfuse manifest file
 Usage: gu make_dxfuse_manifest -f "file-xxxx" "file-yyyy" ... -p ${DX_PROJECT_CONTEXT_ID} -o manifest.json
 
 Options:
-  -f, --fileids <FILEIDS>...   A list of dnanexus file identifiers (file-xxxx, {$dnanexus_link: file-yyyy}, etc.) to include in the manifest
-  -p, --projectid <PROJECTID>  The ID of the dnanexus project containing the files
+  -f, --fileids <FILEIDS>...   A list of DNAnexus file identifiers (file-xxxx, {$dnanexus_link: file-yyyy}, etc.) to include in the manifest
+  -p, --projectid <PROJECTID>  The ID of the DNAnexus project containing the files
   -o, --output <OUTPUT>        JSON file to write the manifest to
   -h, --help                   Print help
   -V, --version                Print version

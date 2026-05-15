@@ -13,11 +13,11 @@ pub(crate) const ABOUT: &str =
 
 #[derive(Parser, Debug)]
 pub(crate) struct Args {
-    /// A list of dnanexus file identifiers (file-xxxx, {$dnanexus_link: file-yyyy}, etc.) to include in the manifest
+    /// A list of DNAnexus file identifiers (file-xxxx, {$dnanexus_link: file-yyyy}, etc.) to include in the manifest
     #[arg(short, long, num_args = 1..)]
     fileids: Vec<String>,
 
-    /// The ID of the dnanexus project containing the files
+    /// The ID of the DNAnexus project containing the files
     #[arg(short, long)]
     projectid: String,
 
