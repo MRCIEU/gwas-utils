@@ -2,8 +2,11 @@ use clap::{Command, CommandFactory, FromArgMatches, crate_version};
 
 use gwas_utils::{GuError, handle_broken_pipe};
 
-mod subcommands;
-use crate::subcommands::*;
+mod csv;
+use crate::csv::*;
+
+mod dn;
+use crate::dn::*;
 
 macro_rules! add_subcommands {
     ($cmd:expr, $($module:ident),*) => {
@@ -55,29 +58,30 @@ fn run() -> Result<(), SubcommandError> {
         .subcommand_required(true)
         .arg_required_else_help(true);
 
-    add_subcommands!(
-        cmd,
-        csvaddp,
-        csvconcat,
-        csvdelim,
-        csvfilter,
-        csvselect,
-        csvsplit,
-        make_dxfuse_manifest
-    );
+    let mut csv_cmg = Command::new("csv")
+        .about("Tools for working with CSV files")
+        .subcommand_required(true)
+        .arg_required_else_help(true);
+
+    let mut dn_cmg = Command::new("dn")
+        .about("Tools for working with DNAnexus")
+        .subcommand_required(true)
+        .arg_required_else_help(true);
+
+    add_subcommands!(csv_cmg, addp, concat, delim, filter, select, split);
+    add_subcommands!(dn_cmg, make_dxfuse_manifest);
+
+    cmd = cmd.subcommand(csv_cmg).subcommand(dn_cmg);
 
     let matches = cmd.get_matches();
 
-    match_subcommand!(
-        matches,
-        csvaddp,
-        csvconcat,
-        csvdelim,
-        csvfilter,
-        csvselect,
-        csvsplit,
-        make_dxfuse_manifest
-    )
+    match matches.subcommand() {
+        Some(("csv", csv_matches)) => {
+            match_subcommand!(csv_matches, addp, concat, delim, filter, select, split)
+        }
+        Some(("dn", dn_matches)) => match_subcommand!(dn_matches, make_dxfuse_manifest),
+        _ => unreachable!(),
+    }
 }
 
 fn run_subcommand(

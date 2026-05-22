@@ -4,14 +4,14 @@ use std::io;
 
 use gwas_utils::{GuError, Result, get_delimeter_from_cli_argument, open_reader, open_writer};
 
-pub(crate) const USAGE: &str = "gu csvsplit -i infile.csv[.gz] -c colname";
+pub(crate) const USAGE: &str = "gu csv split infile.csv[.gz] -c colname";
 pub(crate) const ABOUT: &str =
     "Split a CSV file into multiple files based on unique values in a specified categorical column";
 
 #[derive(Parser, Debug)]
 pub(crate) struct Args {
     /// CSV file to process (can be gzipped if filename ends with .gz)
-    #[arg(short, long, default_value = "stdin")]
+    #[arg(default_value = "stdin")]
     input: String,
 
     /// Categorical column name to split on
@@ -41,7 +41,7 @@ fn handle_commandline_args(args: Args) -> Result<(gwas_utils::Reader, String, ch
     };
     let suffix = match args.suffix.is_empty() {
         true => "".to_string(),
-        false => format!(".{}", args.suffix)
+        false => format!(".{}", args.suffix),
     };
     Ok((file_rdr, args.column, sep, suffix))
 }

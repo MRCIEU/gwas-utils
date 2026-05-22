@@ -5,13 +5,13 @@ use std::io;
 use gwas_utils::{GuError, Result, get_delimeter_from_cli_argument, open_reader, open_writer};
 
 pub(crate) const USAGE: &str =
-    "gu csvconcat -i infile1.csv[.gz] infile2.csv[.gz] ... -o outfile.csv[.gz]";
+    "gu csv concat infile1.csv[.gz] infile2.csv[.gz] ... [-o outfile.csv[.gz]]";
 pub(crate) const ABOUT: &str = "Concatenate multiple CSV files into a single file";
 
 #[derive(Parser, Debug)]
 pub(crate) struct Args {
     /// CSV files to concatenate (can be gzipped if filenames end with .gz)
-    #[arg(short, long, num_args = 1.., required = true)]
+    #[arg(num_args = 1.., required = true)]
     input: Vec<String>,
 
     /// Delimiter for CSV file reading and writing

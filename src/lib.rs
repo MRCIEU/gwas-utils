@@ -231,4 +231,28 @@ mod tests {
         assert_eq!(get_delimeter_from_cli_argument(",").unwrap(), ',');
         assert!(get_delimeter_from_cli_argument("::").is_err());
     }
+
+    #[test]
+    fn test_count_delimiter_outside_quotes() {
+        assert_eq!(count_delimiter_outside_quotes("a,b,c", ','), 2);
+        assert_eq!(count_delimiter_outside_quotes("a,\"b,c\",d", ','), 2);
+        assert_eq!(count_delimiter_outside_quotes("\"a,b\",\"c,d\"", ','), 1);
+        assert_eq!(count_delimiter_outside_quotes("\"a\"\"b\",c", ','), 1);
+        assert_eq!(
+            count_delimiter_outside_quotes("field1\tfield2\t\"x\tt\"\tfield3", '\t'),
+            3
+        );
+    }
+
+    #[test]
+    fn test_sniff_delimiter_from_sample() {
+        let comma_sample = b"id,name,score\n1,Alice,1.0\n2,Bob,2.0\n";
+        assert_eq!(sniff_delimiter_from_sample(comma_sample).unwrap(), ',');
+
+        let tab_sample = b"id\tname\tscore\n1\tAlice\t1.0\n2\tBob\t2.0\n";
+        assert_eq!(sniff_delimiter_from_sample(tab_sample).unwrap(), '\t');
+
+        let semicolon_sample = b"id;name;score\n1;\"A;lice\";1.0\n2;Bob;2.0\n";
+        assert_eq!(sniff_delimiter_from_sample(semicolon_sample).unwrap(), ';');
+    }
 }

@@ -1,13 +1,11 @@
 use clap::Parser;
 use regex::Regex;
 use serde_json::json;
-use std::fs::File;
 use std::io;
-use std::io::BufWriter;
 
-use gwas_utils::Result;
+use gwas_utils::{Result, open_writer};
 
-pub(crate) const USAGE: &str = "gu make_dxfuse_manifest -f \"file-xxxx\" \"file-yyyy\" ... -p ${DX_PROJECT_CONTEXT_ID} -o manifest.json";
+pub(crate) const USAGE: &str = "gu dn make_dxfuse_manifest -f \"file-xxxx\" \"file-yyyy\" ... -p ${DX_PROJECT_CONTEXT_ID} [-o manifest.json]";
 pub(crate) const ABOUT: &str =
     "Convert a list of dnanexus file identifiers into a dxfuse manifest file";
 
@@ -22,7 +20,7 @@ pub(crate) struct Args {
     projectid: String,
 
     /// JSON file to write the manifest to
-    #[arg(short, long)]
+    #[arg(short, long, default_value = "stdout")]
     output: String,
 }
 
@@ -34,8 +32,8 @@ pub(crate) fn run(args: Args) -> Result<()> {
 
 pub(crate) fn handle_commandline_args(
     args: Args,
-) -> Result<(Vec<String>, String, BufWriter<File>)> {
-    let wtr = BufWriter::new(File::create(&args.output)?);
+) -> Result<(Vec<String>, String, gwas_utils::Writer)> {
+    let wtr = open_writer(&args.output)?;
     Ok((args.fileids, args.projectid, wtr))
 }
 
