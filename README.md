@@ -11,15 +11,15 @@ A distroless docker image compiled on Alpine Linux using the Dockerfile in this 
 
 `csv addp` - Add a P column to a CSV file based on a LOG10P column
 
-`csv concat` - Concatenate multiple CSV output files into a single file
+`csv concat` - Concatenate multiple CSV files into a single file
 
 `csv delim`  - Change the delimeter of a CSV file
 
-`csv filter` - Filter the rows of a CSV file based on logical expressions
+`csv filter` - Filter rows from a CSV file based on column-specific expressions
 
-`csv select` - Subset a CSV file to specific columns
+`csv select` - Select specific columns from a CSV file
 
-`csv split` - Split a CSV file into multiple output files based on the categories in a specified column
+`csv split` - Split a CSV file into multiple files based on the categories in a specified column
 
 `dn make_dxfuse_manifest` - Convert a list of DNAnexus file identifiers into a dxfuse manifest file
 
