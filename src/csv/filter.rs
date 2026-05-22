@@ -4,13 +4,13 @@ use std::io;
 use gwas_utils::{GuError, Result, get_delimeter_from_cli_argument, open_reader, open_writer};
 
 pub(crate) const USAGE: &str =
-    "gu csvfilter -i infile.csv[.gz] -e 'sex == male' 'age > 5' ... -o filtered.csv[.gz]";
+    "gu csv filter infile.csv[.gz] -e 'sex == male' 'age > 5' ... [-o outfile.csv[.gz]]";
 pub(crate) const ABOUT: &str = "Filter rows from a CSV file based on column-specific expressions";
 
 #[derive(Parser, Debug)]
 pub(crate) struct Args {
-    /// Input CSV file (can be gzipped if filename ends with .gz)
-    #[arg(short, long, default_value = "stdin")]
+    /// CSV file to process (can be gzipped if filename ends with .gz)
+    #[arg(default_value = "stdin")]
     input: String,
 
     /// Expression(s) to filter rows, in the format "COLUMN-NAME OPERATOR VALUE". Possible operators are: "==", "!=", ">=", "<=", ">", "<".
@@ -25,7 +25,7 @@ pub(crate) struct Args {
     #[arg(short, long, default_value = "auto")]
     delim: String,
 
-    /// Filtered CSV file to write (will be gzipped if filename ends with .gz)
+    /// CSV file to write (will be gzipped if filename ends with .gz)
     #[arg(short, long, default_value = "stdout")]
     output: String,
 }
@@ -96,16 +96,7 @@ impl Operator {
             match self {
                 Operator::Equal => Ok(left == right),
                 Operator::NotEqual => Ok(left != right),
-                Operator::GreaterThan => Err(GuError::Message(
-                    "Invalid operator for non-numeric values".into(),
-                )),
-                Operator::LessThan => Err(GuError::Message(
-                    "Invalid operator for non-numeric values".into(),
-                )),
-                Operator::GreaterThanOrEqual => Err(GuError::Message(
-                    "Invalid operator for non-numeric values".into(),
-                )),
-                Operator::LessThanOrEqual => Err(GuError::Message(
+                _ => Err(GuError::Message(
                     "Invalid operator for non-numeric values".into(),
                 )),
             }

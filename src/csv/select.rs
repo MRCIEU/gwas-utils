@@ -4,13 +4,13 @@ use std::io;
 use gwas_utils::{GuError, Result, get_delimeter_from_cli_argument, open_reader, open_writer};
 
 pub(crate) const USAGE: &str =
-    "gu csvselect -i infile.csv[.gz] -c <column1 column2 ...> -o outfile.csv[.gz]";
+    "gu csv select infile.csv[.gz] -c <column1 column2 ...> [-o outfile.csv[.gz]]";
 pub(crate) const ABOUT: &str = "Select specific columns from a CSV file";
 
 #[derive(Parser, Debug)]
 pub(crate) struct Args {
-    /// Input CSV file to process (can be gzipped if filename ends with .gz)
-    #[arg(short, long, default_value = "stdin")]
+    /// CSV file to process (can be gzipped if filename ends with .gz)
+    #[arg(default_value = "stdin")]
     input: String,
 
     /// Column names to select
@@ -21,7 +21,7 @@ pub(crate) struct Args {
     #[arg(short, long, default_value = "auto")]
     delim: String,
 
-    /// Output file to write with selected columns (will be gzipped if filename ends with .gz)
+    /// CSV file to write (will be gzipped if filename ends with .gz)
     #[arg(short, long, default_value = "stdout")]
     output: String,
 }

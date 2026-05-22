@@ -3,24 +3,24 @@ use std::io;
 
 use gwas_utils::{GuError, Result, get_delimeter_from_cli_argument, open_reader, open_writer};
 
-pub(crate) const USAGE: &str = "gu csvaddp -i infile.regenie[.gz] -o outfile.regenie[.gz]";
+pub(crate) const USAGE: &str = "gu csv addp infile.regenie[.gz] [-o outfile.regenie[.gz]]";
 pub(crate) const ABOUT: &str = "Add a P column to a CSV file based on a LOG10P column";
 
 #[derive(Parser, Debug)]
 pub(crate) struct Args {
     /// CSV file to process (can be gzipped if filename ends with .gz)
-    #[arg(short, long, default_value = "stdin")]
+    #[arg(default_value = "stdin")]
     input: String,
 
     /// Delimiter for CSV file reading and writing
     #[arg(short, long, default_value = "auto")]
     delim: String,
 
-    /// Column name for the LOG10P values
+    /// Name of column containing the LOG10P values
     #[arg(long, default_value = "LOG10P")]
     log10p: String,
 
-    /// Output file to write with added p-value column (will be gzipped if filename ends with .gz)
+    /// CSV file to write (will be gzipped if filename ends with .gz)
     #[arg(short, long, default_value = "stdout")]
     output: String,
 }
@@ -57,9 +57,10 @@ where
     let log10_p_col_idx = header
         .iter()
         .position(|h| h == log10_p_col)
-        .ok_or(GuError::Message(
-            "Couldn't find LOG10P column in file header".into(),
-        ))?;
+        .ok_or(GuError::Message(format!(
+            "Couldn't find {} column in file header",
+            log10_p_col
+        )))?;
 
     header.push_field("P");
 

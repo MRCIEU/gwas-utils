@@ -3,24 +3,24 @@ use std::io;
 
 use gwas_utils::{Result, get_delimeter_from_cli_argument, open_reader, open_writer};
 
-pub(crate) const USAGE: &str = "gu csvdelim -i infile.csv[.gz] -d\"\\t\" -o outfile.csv[.gz]";
+pub(crate) const USAGE: &str = "gu csv delim infile.csv[.gz] -d\"\\t\" [-o outfile.tsv[.gz]]";
 pub(crate) const ABOUT: &str = "Change the delimeter of a CSV file";
 
 #[derive(Parser, Debug)]
 pub(crate) struct Args {
     /// CSV file to process (can be gzipped if filename ends with .gz)
-    #[arg(short, long, default_value = "stdin")]
+    #[arg(default_value = "stdin")]
     input: String,
-
-    /// Delimiter for OUTPUT CSV file
-    #[arg(short, long)]
-    delim: String,
 
     /// Delimiter for INPUT CSV file
     #[arg(long, default_value = "auto")]
     din: String,
 
-    /// Re-delimetered CSV file to write (will be gzipped if filename ends with .gz)
+    /// Delimiter for OUTPUT CSV file
+    #[arg(short, long)]
+    delim: String,
+
+    /// CSV file to write (will be gzipped if filename ends with .gz)
     #[arg(short, long, default_value = "stdout")]
     output: String,
 }
