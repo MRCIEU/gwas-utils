@@ -1,3 +1,4 @@
+use clap::Arg;
 use clap::{Command, CommandFactory, FromArgMatches, crate_version};
 
 use gwas_utils::{GuError, handle_broken_pipe};
@@ -7,6 +8,9 @@ use crate::csv::*;
 
 mod dn;
 use crate::dn::*;
+
+mod licences;
+use crate::licences::*;
 
 macro_rules! add_subcommands {
     ($cmd:expr, $($module:ident),*) => {
@@ -55,8 +59,15 @@ fn run() -> Result<(), SubcommandError> {
     let mut cmd = Command::new("gu")
         .version(crate_version!())
         .propagate_version(true)
-        .subcommand_required(true)
-        .arg_required_else_help(true);
+        .arg_required_else_help(true)
+        .arg(
+            Arg::new("licences")
+                .short('l')
+                .long("licences")
+                .alias("licenses")
+                .help("Print licence information")
+                .action(clap::ArgAction::SetTrue),
+        );
 
     let mut csv_cmg = Command::new("csv")
         .about("Tools for working with CSV files")
@@ -74,6 +85,17 @@ fn run() -> Result<(), SubcommandError> {
     cmd = cmd.subcommand(csv_cmg).subcommand(dn_cmg);
 
     let matches = cmd.get_matches();
+
+    if let Some(true) = matches.get_one::<bool>("licences") {
+        println!("gwas-utils uses the following dependencies, which are licensed as follows:\n");
+        println!("clap:\n{}\n", LICENCE_CLAP);
+        println!("csv:\n{}\n", LICENCE_CSV);
+        println!("flate2:\n{}\n", LICENCE_FLATE2);
+        println!("regex:\n{}\n", LICENCE_REGEX);
+        println!("serde_json:\n{}\n", LICENCE_SERDE);
+        println!("thiserror:\n{}\n", LICENCE_THISERROR);
+        return Ok(());
+    }
 
     match matches.subcommand() {
         Some(("csv", csv_matches)) => {
