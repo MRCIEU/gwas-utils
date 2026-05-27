@@ -76,7 +76,7 @@ cargo build --release --target x86_64-unknown-linux-musl
 
 ```
 ❯ gu -h
-Usage: gu <COMMAND>
+Usage: gu [OPTIONS] [COMMAND]
 
 Commands:
   csv   Tools for working with CSV files
@@ -84,8 +84,9 @@ Commands:
   help  Print this message or the help of the given subcommand(s)
 
 Options:
-  -h, --help     Print help
-  -V, --version  Print version
+  -l, --licences  Print licence information
+  -h, --help      Print help
+  -V, --version   Print version
 ```
 
 ```
