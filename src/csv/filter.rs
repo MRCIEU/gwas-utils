@@ -3,9 +3,13 @@ use std::io;
 
 use gwas_utils::{GuError, Result, get_delimeter_from_cli_argument, open_reader, open_writer};
 
+pub(crate) const ABOUT: &str = "Filter rows from a CSV file based on column-specific expressions";
 pub(crate) const USAGE: &str =
     "gu csv filter infile.csv[.gz] -e 'sex == male' 'age > 5' ... [-o outfile.csv[.gz]]";
-pub(crate) const ABOUT: &str = "Filter rows from a CSV file based on column-specific expressions";
+
+pub(crate) fn get_usage() -> String {
+    USAGE.to_string()
+}
 
 #[derive(Parser, Debug)]
 pub(crate) struct Args {
@@ -211,13 +215,32 @@ mod tests {
 
     #[test]
     fn test_filter_csv_1() {
-        let file_rdr = open_reader("testdata/small.concat.regenie").unwrap();
+        let input = r#"CHROM GENPOS ID ALLELE0 ALLELE1 A1FREQ INFO N TEST BETA SE CHISQ LOG10P EXTRA
+1 1 1 2 1 0.214575 1 494 ADD 0.0775674 0.230001 0.113736 0.133163 NA
+1 2 2 2 1 0.218623 1 494 ADD 0.131068 0.239808 0.29872 0.233077 NA
+1 3 3 2 1 0.211538 1 494 ADD -0.256723 0.244611 1.10148 0.531739 NA
+1 4 4 2 1 0.191296 1 494 ADD -0.131175 0.250523 0.274164 0.221449 NA
+1 5 5 2 1 0.195344 1 494 ADD -0.187228 0.235372 0.632751 0.370236 NA
+2 1 5 2 1 0.195344 1 494 ADD -0.187228 0.235372 0.632751 0.370236 NA
+2 2 6 2 1 0.190283 1 494 ADD -0.234935 0.245557 0.91536 0.47019 NA
+2 3 7 2 1 0.206478 1 494 ADD 0.11647 0.227747 0.26153 0.215332 NA
+2 4 8 2 1 0.188259 1 494 ADD -0.353772 0.251712 1.97533 0.796197 NA
+2 5 9 2 1 0.194332 1 494 ADD 0.283254 0.241072 1.38057 0.619781 NA
+"#;
+
         let mut wtr = Cursor::new(Vec::new());
         let filters = vec![
             parse_filter("CHROM == 1").unwrap(),
             parse_filter("GENPOS < 3").unwrap(),
         ];
-        process_file(file_rdr, &mut wtr, ' ', filters, false).unwrap();
+        process_file(
+            std::io::Cursor::new(input.as_bytes()),
+            &mut wtr,
+            ' ',
+            filters,
+            false,
+        )
+        .unwrap();
 
         let desired_result =
             r#"CHROM GENPOS ID ALLELE0 ALLELE1 A1FREQ INFO N TEST BETA SE CHISQ LOG10P EXTRA
@@ -232,13 +255,32 @@ mod tests {
 
     #[test]
     fn test_filter_csv_2() {
-        let file_rdr = open_reader("testdata/small.concat.regenie").unwrap();
+        let input = r#"CHROM GENPOS ID ALLELE0 ALLELE1 A1FREQ INFO N TEST BETA SE CHISQ LOG10P EXTRA
+1 1 1 2 1 0.214575 1 494 ADD 0.0775674 0.230001 0.113736 0.133163 NA
+1 2 2 2 1 0.218623 1 494 ADD 0.131068 0.239808 0.29872 0.233077 NA
+1 3 3 2 1 0.211538 1 494 ADD -0.256723 0.244611 1.10148 0.531739 NA
+1 4 4 2 1 0.191296 1 494 ADD -0.131175 0.250523 0.274164 0.221449 NA
+1 5 5 2 1 0.195344 1 494 ADD -0.187228 0.235372 0.632751 0.370236 NA
+2 1 5 2 1 0.195344 1 494 ADD -0.187228 0.235372 0.632751 0.370236 NA
+2 2 6 2 1 0.190283 1 494 ADD -0.234935 0.245557 0.91536 0.47019 NA
+2 3 7 2 1 0.206478 1 494 ADD 0.11647 0.227747 0.26153 0.215332 NA
+2 4 8 2 1 0.188259 1 494 ADD -0.353772 0.251712 1.97533 0.796197 NA
+2 5 9 2 1 0.194332 1 494 ADD 0.283254 0.241072 1.38057 0.619781 NA
+"#;
+
         let mut wtr = Cursor::new(Vec::new());
         let filters = vec![
             parse_filter("CHROM == 1").unwrap(),
             parse_filter("GENPOS < 3").unwrap(),
         ];
-        process_file(file_rdr, &mut wtr, ' ', filters, true).unwrap();
+        process_file(
+            std::io::Cursor::new(input.as_bytes()),
+            &mut wtr,
+            ' ',
+            filters,
+            true,
+        )
+        .unwrap();
 
         let desired_result =
             r#"CHROM GENPOS ID ALLELE0 ALLELE1 A1FREQ INFO N TEST BETA SE CHISQ LOG10P EXTRA

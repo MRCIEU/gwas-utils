@@ -2,5 +2,8 @@ pub(crate) mod addp;
 pub(crate) mod concat;
 pub(crate) mod delim;
 pub(crate) mod filter;
+pub(crate) mod merge;
+pub(crate) mod regenify;
+pub(crate) mod reheader;
 pub(crate) mod select;
 pub(crate) mod split;
