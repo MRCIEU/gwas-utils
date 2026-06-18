@@ -3,8 +3,12 @@ use std::io;
 
 use gwas_utils::{GuError, Result, get_delimeter_from_cli_argument, open_reader, open_writer};
 
-pub(crate) const USAGE: &str = "gu csv addp infile.regenie[.gz] [-o outfile.regenie[.gz]]";
 pub(crate) const ABOUT: &str = "Add a P column to a CSV file based on a LOG10P column";
+pub(crate) const USAGE: &str = "gu csv addp infile.regenie[.gz] [-o outfile.regenie[.gz]]";
+
+pub(crate) fn get_usage() -> String {
+    USAGE.to_string()
+}
 
 #[derive(Parser, Debug)]
 pub(crate) struct Args {
@@ -94,7 +98,6 @@ fn get_p_from_log10_p(log10_p: f64) -> f64 {
 
 #[cfg(test)]
 mod tests {
-    use std::fs;
     use std::io::Cursor;
 
     use super::*;
@@ -119,11 +122,44 @@ mod tests {
 
     #[test]
     fn test_add_p_to_file() {
-        let file_rdr = open_reader("testdata/small.concat.regenie").unwrap();
+        let input = r#"CHROM GENPOS ID ALLELE0 ALLELE1 A1FREQ INFO N TEST BETA SE CHISQ LOG10P EXTRA
+1 1 1 2 1 0.214575 1 494 ADD 0.0775674 0.230001 0.113736 0.133163 NA
+1 2 2 2 1 0.218623 1 494 ADD 0.131068 0.239808 0.29872 0.233077 NA
+1 3 3 2 1 0.211538 1 494 ADD -0.256723 0.244611 1.10148 0.531739 NA
+1 4 4 2 1 0.191296 1 494 ADD -0.131175 0.250523 0.274164 0.221449 NA
+1 5 5 2 1 0.195344 1 494 ADD -0.187228 0.235372 0.632751 0.370236 NA
+2 1 5 2 1 0.195344 1 494 ADD -0.187228 0.235372 0.632751 0.370236 NA
+2 2 6 2 1 0.190283 1 494 ADD -0.234935 0.245557 0.91536 0.47019 NA
+2 3 7 2 1 0.206478 1 494 ADD 0.11647 0.227747 0.26153 0.215332 NA
+2 4 8 2 1 0.188259 1 494 ADD -0.353772 0.251712 1.97533 0.796197 NA
+2 5 9 2 1 0.194332 1 494 ADD 0.283254 0.241072 1.38057 0.619781 NA
+"#;
+
         let mut wtr = Cursor::new(Vec::new());
-        process_file(file_rdr, &mut wtr, ' ', "LOG10P".to_string()).unwrap();
-        let desired_result = fs::read_to_string("testdata/small.concat.P.regenie").unwrap();
+
+        process_file(
+            std::io::Cursor::new(input.as_bytes()),
+            &mut wtr,
+            ' ',
+            "LOG10P".to_string(),
+        )
+        .unwrap();
+
         let result = String::from_utf8(wtr.into_inner()).unwrap();
+
+        let desired_result = r#"CHROM GENPOS ID ALLELE0 ALLELE1 A1FREQ INFO N TEST BETA SE CHISQ LOG10P EXTRA P
+1 1 1 2 1 0.214575 1 494 ADD 0.0775674 0.230001 0.113736 0.133163 NA 7.359308350850203E-1
+1 2 2 2 1 0.218623 1 494 ADD 0.131068 0.239808 0.29872 0.233077 NA 5.846864106077305E-1
+1 3 3 2 1 0.211538 1 494 ADD -0.256723 0.244611 1.10148 0.531739 NA 2.939415635709693E-1
+1 4 4 2 1 0.191296 1 494 ADD -0.131175 0.250523 0.274164 0.221449 NA 6.005525287551413E-1
+1 5 5 2 1 0.195344 1 494 ADD -0.187228 0.235372 0.632751 0.370236 NA 4.263477741622134E-1
+2 1 5 2 1 0.195344 1 494 ADD -0.187228 0.235372 0.632751 0.370236 NA 4.263477741622134E-1
+2 2 6 2 1 0.190283 1 494 ADD -0.234935 0.245557 0.91536 0.47019 NA 3.386959472360824E-1
+2 3 7 2 1 0.206478 1 494 ADD 0.11647 0.227747 0.26153 0.215332 NA 6.090711097900752E-1
+2 4 8 2 1 0.188259 1 494 ADD -0.353772 0.251712 1.97533 0.796197 NA 1.5988326188144125E-1
+2 5 9 2 1 0.194332 1 494 ADD 0.283254 0.241072 1.38057 0.619781 NA 2.4000428742690416E-1
+"#;
+
         assert_eq!(result, desired_result);
     }
 }

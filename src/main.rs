@@ -19,7 +19,7 @@ macro_rules! add_subcommands {
                 .subcommand(
                     Command::new(stringify!($module))
                         .about($module::ABOUT)
-                        .override_usage($module::USAGE)
+                        .override_usage($module::get_usage())
                         .args($module::Args::command().get_arguments()),
                 )
             )*
@@ -30,7 +30,7 @@ macro_rules! match_subcommand {
     ($matches:expr, $($module:ident),*) => {
         match $matches.subcommand() {
             $(
-                Some((stringify!($module), sub_m)) => run_subcommand($module::USAGE, || {
+                Some((stringify!($module), sub_m)) => run_subcommand($module::get_usage(), || {
                     let args = $module::Args::from_arg_matches(sub_m)?;
                     $module::run(args)?;
                     Ok(())
@@ -43,7 +43,7 @@ macro_rules! match_subcommand {
 
 struct SubcommandError {
     source: GuError,
-    usage: &'static str,
+    usage: String,
 }
 
 fn main() {
@@ -79,7 +79,9 @@ fn run() -> Result<(), SubcommandError> {
         .subcommand_required(true)
         .arg_required_else_help(true);
 
-    add_subcommands!(csv_cmg, addp, concat, delim, filter, select, split);
+    add_subcommands!(
+        csv_cmg, addp, concat, delim, filter, merge, regenify, reheader, select, split
+    );
     add_subcommands!(dn_cmg, make_dxfuse_manifest);
 
     cmd = cmd.subcommand(csv_cmg).subcommand(dn_cmg);
@@ -87,7 +89,7 @@ fn run() -> Result<(), SubcommandError> {
     let matches = cmd.get_matches();
 
     if let Some(true) = matches.get_one::<bool>("licences") {
-        println!("gwas-utils uses the following dependencies, which are licensed as follows:\n");
+        println!("gwas-utils uses the following dependencies:\n");
         println!("clap:\n{}\n", LICENCE_CLAP);
         println!("csv:\n{}\n", LICENCE_CSV);
         println!("flate2:\n{}\n", LICENCE_FLATE2);
@@ -99,7 +101,18 @@ fn run() -> Result<(), SubcommandError> {
 
     match matches.subcommand() {
         Some(("csv", csv_matches)) => {
-            match_subcommand!(csv_matches, addp, concat, delim, filter, select, split)
+            match_subcommand!(
+                csv_matches,
+                addp,
+                concat,
+                delim,
+                filter,
+                merge,
+                regenify,
+                reheader,
+                select,
+                split
+            )
         }
         Some(("dn", dn_matches)) => match_subcommand!(dn_matches, make_dxfuse_manifest),
         _ => unreachable!(),
@@ -107,7 +120,7 @@ fn run() -> Result<(), SubcommandError> {
 }
 
 fn run_subcommand(
-    usage: &'static str,
+    usage: String,
     execute: impl FnOnce() -> Result<(), GuError>,
 ) -> Result<(), SubcommandError> {
     execute().map_err(|source| SubcommandError { source, usage })

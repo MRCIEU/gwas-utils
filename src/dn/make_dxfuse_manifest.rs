@@ -5,9 +5,13 @@ use std::io;
 
 use gwas_utils::{Result, open_writer};
 
-pub(crate) const USAGE: &str = "gu dn make_dxfuse_manifest -f \"file-xxxx\" \"file-yyyy\" ... -p ${DX_PROJECT_CONTEXT_ID} [-o manifest.json]";
 pub(crate) const ABOUT: &str =
     "Convert a list of dnanexus file identifiers into a dxfuse manifest file";
+pub(crate) const USAGE: &str = "gu dn make_dxfuse_manifest -f \"file-xxxx\" \"file-yyyy\" ... -p ${DX_PROJECT_CONTEXT_ID} [-o manifest.json]";
+
+pub(crate) fn get_usage() -> String {
+    USAGE.to_string()
+}
 
 #[derive(Parser, Debug)]
 pub(crate) struct Args {

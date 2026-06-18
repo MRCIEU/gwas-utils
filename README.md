@@ -2,7 +2,7 @@
 
 `gu` consists of a set of subcommands which were written to do specific, GWAS-related tasks in cloud environments without the overhead of maintaining a python / R installation + libraries. 
 
-A distroless docker image compiled on Alpine Linux using the Dockerfile in this repo gzips to ~1.3MB in size on disk.
+A distroless docker image with `gu` compiled on Alpine Linux using the Dockerfile in this repo gzips to ~1.3MB in size on disk.
 
 `gu` is a work in progress - subcommands + API are both subject to change at the moment.
 
@@ -16,6 +16,10 @@ A distroless docker image compiled on Alpine Linux using the Dockerfile in this 
 `csv delim`  - Change the delimeter of a CSV file
 
 `csv filter` - Filter rows from a CSV file based on column-specific expressions
+
+`csv merge` - Merge two CSV files based on a shared column
+
+`csv regenify` - Write a tab separated CSV file with missing data replaced by "NA"s
 
 `csv select` - Select specific columns from a CSV file
 
@@ -72,7 +76,22 @@ cargo build --release --target x86_64-unknown-linux-musl
 ```
 
 
-## Help / Usage
+## Usage
+
+### C[?]SV file handling
+
+* By default, `gu csv <SUBCOMMAND>` will try to automatically detect the delimeter in the file it's reading. If that fails for some reason, you can specify it manually (usually using the `-d` flag). Automatically detected delimeters must be one of: `[',', '\t', ';', '|', ' ']`.
+
+* `gu csv <SUBCOMMAND>`s default to reading from `stdin` and writing to `stdout`, so you can chain multiple commands together to achieve what you want:
+
+  ```
+  gu csv filter myfile.csv -e 'CHROM == 1' 'P < 5E-8' |\
+      gu csv select -c CHROM POS P |\
+      gu csv delim -d "\t" -o chr1.signif.tsv
+  ```
+
+
+## Help 
 
 ```
 ❯ gu -h
@@ -96,13 +115,16 @@ Tools for working with CSV files
 Usage: gu csv <COMMAND>
 
 Commands:
-  addp    Add a P column to a CSV file based on a LOG10P column
-  concat  Concatenate multiple CSV files into a single file
-  delim   Change the delimeter of a CSV file
-  filter  Filter rows from a CSV file based on column-specific expressions
-  select  Select specific columns from a CSV file
-  split   Split a CSV file into multiple files based on unique values in a specified categorical column
-  help    Print this message or the help of the given subcommand(s)
+  addp      Add a P column to a CSV file based on a LOG10P column
+  concat    Concatenate multiple CSV files into a single file
+  delim     Change the delimeter of a CSV file
+  filter    Filter rows from a CSV file based on column-specific expressions
+  merge     Merge two CSV files based on a shared column
+  regenify  Write a tab separated file with missing data replaced by "NA"s
+  reheader  Reheader a CSV file
+  select    Select specific columns from a CSV file
+  split     Split a CSV file into multiple files based on unique values in a specified categorical column
+  help      Print this message or the help of the given subcommand(s)
 
 Options:
   -h, --help     Print help
@@ -178,6 +200,62 @@ Options:
 ```
 
 ```
+❯ gu csv merge -h
+Merge two CSV files based on a shared column
+
+Usage: gu csv merge infile1.csv[.gz] infile2.csv[.gz] -c KEY_COLUMN [-o outfile.csv[.gz]]
+
+Arguments:
+  <INPUT> <INPUT>...  CSV files to merge (can be gzipped if filenames end with .gz)
+
+Options:
+  -c, --column <COLUMN>  Column name to merge on
+      --c2 <C2>          Column name to merge on for second file, if different
+      --d1 <D1>          Delimiter for CSV file reading and writing [default: auto]
+      --d2 <D2>          Delimiter for the second CSV file [default: auto]
+  -o, --output <OUTPUT>  CSV file to write (will be gzipped if filename ends with .gz) [default: stdout]
+  -h, --help             Print help
+  -V, --version          Print version
+```
+
+```
+❯ gu csv regenify -h
+Write a tab separated file with missing data replaced by "NA"s
+
+Usage: gu csv regenify infile.csv[.gz] [-o outfile.tsv[.gz]]
+
+Arguments:
+  [INPUT]  CSV file to process (can be gzipped if filename ends with .gz) [default: stdin]
+
+Options:
+  -d, --delim <DELIM>    Delimiter for CSV file reading and writing [default: auto]
+      --no-rep-neg-one   Don't replace -1 with NA
+  -o, --output <OUTPUT>  CSV file to write (will be gzipped if filename ends with .gz) [default: stdout]
+  -h, --help             Print help
+  -V, --version          Print version
+```
+
+```
+❯ gu csv reheader -h
+Reheader a CSV file
+
+Usage: 
+    gu csv reheader infile.csv[.gz] -l COL1 COL2 ... [-o outfile.csv[.gz]]
+    gu csv reheader infile.csv[.gz] -c OLDCOL1=NEWCOL1 OLDCOL2=NEWCOL2 ... [-o outfile.csv[.gz]]
+
+Arguments:
+  [INPUT]  CSV file to process (can be gzipped if filename ends with .gz) [default: stdin]
+
+Options:
+  -l, --list <LIST>...        New header to write (format: list of strings corresponding to new columm names)
+  -c, --columns <COLUMNS>...  Specific columns to rename (format: oldcolumn=newcolumn for arbitrary number of columns)
+  -d, --delim <DELIM>         Delimiter for CSV file reading and writing [default: auto]
+  -o, --output <OUTPUT>       CSV file to write (will be gzipped if filename ends with .gz) [default: stdout]
+  -h, --help                  Print help
+  -V, --version               Print version
+```
+
+```
 ❯ gu csv select -h
 Select specific columns from a CSV file
 
@@ -189,6 +267,7 @@ Arguments:
 Options:
   -c, --columns <COLUMNS>...  Column names to select
   -d, --delim <DELIM>         Delimiter for CSV file reading and writing [default: auto]
+      --no-reorder            Don't reorder selected columns
   -o, --output <OUTPUT>       CSV file to write (will be gzipped if filename ends with .gz) [default: stdout]
   -h, --help                  Print help
   -V, --version               Print version
