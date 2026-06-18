@@ -21,6 +21,8 @@ A distroless docker image with `gu` compiled on Alpine Linux using the Dockerfil
 
 `csv regenify` - Write a tab separated CSV file with missing data replaced by "NA"s
 
+`csv reheader` - Reheader a CSV file
+
 `csv select` - Select specific columns from a CSV file
 
 `csv split` - Split a CSV file into multiple files based on the categories in a specified column
