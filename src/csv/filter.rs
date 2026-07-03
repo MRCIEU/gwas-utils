@@ -6,7 +6,7 @@ use gwas_utils::{GuError, Result, get_delimeter_from_cli_argument, open_reader, 
 
 pub(crate) const ABOUT: &str = "Filter rows from a CSV file based on column-specific expressions";
 pub(crate) const USAGE: &str =
-    "gu csv filter infile.csv[.gz] -e 'sex == male' 'age > 5' ... [-o outfile.csv[.gz]]";
+    "gu csv filter infile.csv[.gz] -f 'sex == male' 'age > 5' ... [-o outfile.csv[.gz]]";
 
 pub(crate) fn get_usage() -> String {
     USAGE.to_string()

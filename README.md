@@ -169,7 +169,7 @@ Options:
 ❯ gu csv filter -h
 Filter rows from a CSV file based on column-specific expressions
 
-Usage: gu csv filter infile.csv[.gz] -e 'sex == male' 'age > 5' ... [-o outfile.csv[.gz]]
+Usage: gu csv filter infile.csv[.gz] -f 'sex == male' 'age > 5' ... [-o outfile.csv[.gz]]
 
 Arguments:
   [INPUT]  CSV file to process (can be gzipped if filename ends with .gz) [default: stdin]
