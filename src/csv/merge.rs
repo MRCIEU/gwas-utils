@@ -1,7 +1,9 @@
 use clap::Parser;
 use std::io;
 
-use gwas_utils::{GuError, Result, get_delimeter_from_cli_argument, open_reader, open_writer};
+use gwas_utils::{Result, get_delimeter_from_cli_argument, open_reader, open_writer};
+
+use crate::csv::err;
 
 pub(crate) const ABOUT: &str = "Merge two CSV files based on a shared column";
 pub(crate) const USAGE: &str =
@@ -67,11 +69,11 @@ fn handle_commandline_args(
     let mut file_rdr2 = open_reader(&args.input[1])?;
     let file_wtr = open_writer(&args.output)?;
     let sep1 = match args.d1.as_str() {
-        "auto" => file_rdr1.sniff()?,
+        "auto" => file_rdr1.sniff_csv_delimiter()?,
         _ => get_delimeter_from_cli_argument(&args.d1)?,
     };
     let sep2 = match args.d2.as_str() {
-        "auto" => file_rdr2.sniff()?,
+        "auto" => file_rdr2.sniff_csv_delimiter()?,
         _ => get_delimeter_from_cli_argument(&args.d2)?,
     };
     Ok((
@@ -111,14 +113,10 @@ where
         merge_column2 = merge_column1.clone();
     }
 
-    let key_column_idx =
-        header2
-            .iter()
-            .position(|h| h == merge_column2)
-            .ok_or(GuError::Message(format!(
-                "Column '{}' not found in CSV header 1",
-                &merge_column2
-            )))?;
+    let key_column_idx = header2
+        .iter()
+        .position(|h| h == merge_column2)
+        .ok_or(err::column_not_found_error(&merge_column2))?;
 
     let combined_header = combine_records(header1, header2, key_column_idx)?;
 
@@ -132,10 +130,7 @@ where
         let record = result?;
         let key_value = record
             .get(key_column_idx)
-            .ok_or(GuError::Message(format!(
-                "Key column '{}' not found in CSV 2",
-                &merge_column2
-            )))?
+            .ok_or(err::column_not_found_error(&merge_column2))?
             .to_string();
         if let Some(matching_record) = loaded.get(&key_value) {
             let combined_record = combine_records(matching_record.clone(), record, key_column_idx)?;
@@ -168,10 +163,7 @@ where
     let key_column_idx = header
         .iter()
         .position(|h| h == key)
-        .ok_or(GuError::Message(format!(
-            "Column '{}' not found in CSV header 3",
-            &key
-        )))?;
+        .ok_or(err::column_not_found_error(&key))?;
 
     let mut map = std::collections::HashMap::new();
 
@@ -179,10 +171,7 @@ where
         let record = result?;
         let key_value = record
             .get(key_column_idx)
-            .ok_or(GuError::Message(format!(
-                "Key column '{}' not found in CSV 4",
-                &key
-            )))?
+            .ok_or(err::column_not_found_error(&key))?
             .to_string();
         map.insert(key_value, record.clone());
     }

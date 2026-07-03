@@ -1,6 +1,7 @@
 pub(crate) mod addp;
 pub(crate) mod concat;
 pub(crate) mod delim;
+pub(crate) mod err;
 pub(crate) mod filter;
 pub(crate) mod merge;
 pub(crate) mod regenify;

@@ -3,6 +3,8 @@ use std::{collections::HashMap, io};
 
 use gwas_utils::{GuError, Result, get_delimeter_from_cli_argument, open_reader, open_writer};
 
+use crate::csv::err;
+
 pub(crate) const ABOUT: &str = "Reheader a CSV file";
 pub(crate) const USAGE: &str = r#"
     gu csv reheader infile.csv[.gz] -l COL1 COL2 ... [-o outfile.csv[.gz]]
@@ -53,7 +55,7 @@ fn handle_commandline_args(
     let mut file_rdr = open_reader(&args.input)?;
     let file_wtr = open_writer(&args.output)?;
     let sep = match args.delim.as_str() {
-        "auto" => file_rdr.sniff()?,
+        "auto" => file_rdr.sniff_csv_delimiter()?,
         _ => get_delimeter_from_cli_argument(&args.delim)?,
     };
     let new_header = if !args.list.is_empty() {
@@ -124,10 +126,7 @@ where
             if let Some(idx) = header.iter().position(|h| h == old_col) {
                 new_header[idx] = new_col;
             } else {
-                return Err(GuError::Message(format!(
-                    "Column '{}' not found in input file",
-                    old_col
-                )));
+                return Err(err::column_not_found_error(&old_col));
             }
         }
         csv_wtr.write_record(&new_header)?;

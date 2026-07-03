@@ -1,6 +1,7 @@
 use clap::Parser;
 use std::io;
 
+use crate::csv::err;
 use gwas_utils::{GuError, Result, get_delimeter_from_cli_argument, open_reader, open_writer};
 
 pub(crate) const ABOUT: &str = "Filter rows from a CSV file based on column-specific expressions";
@@ -19,7 +20,7 @@ pub(crate) struct Args {
 
     /// Expression(s) to filter rows, in the format "COLUMN-NAME OPERATOR VALUE". Possible operators are: "==", "!=", ">=", "<=", ">", "<".
     #[arg(short, long, num_args=1..)]
-    expression: Vec<String>,
+    filter: Vec<String>,
 
     /// Rows will be included in the output if any expression is true (default is to include rows only if all expressions are true)
     #[arg(long, default_value_t = false)]
@@ -51,10 +52,10 @@ fn handle_commandline_args(
     let mut file_rdr = open_reader(&args.input)?;
     let file_wtr = open_writer(&args.output)?;
     let sep = match args.delim.as_str() {
-        "auto" => file_rdr.sniff()?,
+        "auto" => file_rdr.sniff_csv_delimiter()?,
         _ => get_delimeter_from_cli_argument(&args.delim)?,
     };
-    let filters = parse_filters(args.expression)?;
+    let filters = parse_filters(args.filter)?;
     Ok((file_rdr, file_wtr, sep, filters, args.any))
 }
 
@@ -163,14 +164,10 @@ where
 
     // Set column indices for filters based on header
     for filter in &mut filters {
-        filter.column_idx =
-            header
-                .iter()
-                .position(|h| h == filter.column_name)
-                .ok_or(GuError::Message(format!(
-                    "Column '{}' not found in CSV header",
-                    filter.column_name
-                )))?;
+        filter.column_idx = header
+            .iter()
+            .position(|h| h == filter.column_name)
+            .ok_or(err::column_not_found_error(&filter.column_name))?;
     }
 
     let mut csv_wtr = csv::WriterBuilder::new()

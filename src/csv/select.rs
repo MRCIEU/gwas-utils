@@ -1,7 +1,9 @@
 use clap::Parser;
 use std::io;
 
-use gwas_utils::{GuError, Result, get_delimeter_from_cli_argument, open_reader, open_writer};
+use gwas_utils::{Result, get_delimeter_from_cli_argument, open_reader, open_writer};
+
+use crate::csv::err;
 
 pub(crate) const ABOUT: &str = "Select specific columns from a CSV file";
 pub(crate) const USAGE: &str =
@@ -18,7 +20,7 @@ pub(crate) struct Args {
     input: String,
 
     /// Column names to select
-    #[arg(short, long, num_args = 1..)]
+    #[arg(short, long, num_args = 1.., required = true)]
     columns: Vec<String>,
 
     /// Delimiter for CSV file reading and writing
@@ -51,7 +53,7 @@ fn handle_commandline_args(
     let mut file_rdr = open_reader(&args.input)?;
     let file_wtr = open_writer(&args.output)?;
     let sep = match args.delim.as_str() {
-        "auto" => file_rdr.sniff()?,
+        "auto" => file_rdr.sniff_csv_delimiter()?,
         _ => get_delimeter_from_cli_argument(&args.delim)?,
     };
     Ok((file_rdr, file_wtr, args.columns, args.no_reorder, sep))
@@ -75,6 +77,12 @@ where
 
     let header = csv_rdr.headers()?.clone();
 
+    for column in &columns_to_select {
+        if !header.iter().any(|h| h == column) {
+            return Err(err::column_not_found_error(column));
+        }
+    }
+
     let column_indices_to_retain: Vec<usize> = if no_reorder {
         header
             .iter()
@@ -92,9 +100,6 @@ where
         .iter()
         .map(|&i| &header[i])
         .collect::<Vec<_>>();
-    if header_reduced.is_empty() {
-        return Err(GuError::Message("No matching columns found".into()));
-    }
 
     let mut csv_wtr = csv::WriterBuilder::new()
         .delimiter(sep as u8)
@@ -123,7 +128,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_select_columns1() {
+    fn test_select_columns_noreorder() {
         let input = r#"CHROM GENPOS ID ALLELE0 ALLELE1 A1FREQ INFO N TEST BETA SE CHISQ LOG10P EXTRA
 1 1 1 2 1 0.214575 1 494 ADD 0.0775674 0.230001 0.113736 0.133163 NA
 1 2 2 2 1 0.218623 1 494 ADD 0.131068 0.239808 0.29872 0.233077 NA
@@ -156,7 +161,7 @@ mod tests {
     }
 
     #[test]
-    fn test_select_columns2() {
+    fn test_select_columns_reorder() {
         let input = r#"CHROM GENPOS ID ALLELE0 ALLELE1 A1FREQ INFO N TEST BETA SE CHISQ LOG10P EXTRA
 1 1 1 2 1 0.214575 1 494 ADD 0.0775674 0.230001 0.113736 0.133163 NA
 1 2 2 2 1 0.218623 1 494 ADD 0.131068 0.239808 0.29872 0.233077 NA
@@ -186,5 +191,30 @@ mod tests {
 
         let result = String::from_utf8(wtr.into_inner()).unwrap();
         assert_eq!(result, desired_result);
+    }
+
+    #[test]
+    fn test_select_columns_column_not_found() {
+        let input = r#"CHROM GENPOS ID ALLELE0 ALLELE1 A1FREQ INFO N TEST BETA SE CHISQ LOG10P EXTRA
+1 1 1 2 1 0.214575 1 494 ADD 0.0775674 0.230001 0.113736 0.133163 NA
+1 2 2 2 1 0.218623 1 494 ADD 0.131068 0.239808 0.29872 0.233077 NA
+1 3 3 2 1 0.211538 1 494 ADD -0.256723 0.244611 1.10148 0.531739 NA
+1 4 4 2 1 0.191296 1 494 ADD -0.131175 0.250523 0.274164 0.221449 NA
+1 5 5 2 1 0.195344 1 494 ADD -0.187228 0.235372 0.632751 0.370236 NA
+"#;
+
+        let mut wtr = Cursor::new(Vec::new());
+
+        let e = process_file(
+            Cursor::new(input.as_bytes()),
+            &mut wtr,
+            vec!["ID".into(), "CHR".into(), "LOG10P".into()],
+            false,
+            ' ',
+        );
+
+        if !e.is_err() {
+            panic!("Expected error for missing column, but got Ok");
+        }
     }
 }

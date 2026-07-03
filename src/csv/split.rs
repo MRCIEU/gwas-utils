@@ -40,7 +40,7 @@ pub(crate) fn run(args: Args) -> Result<()> {
 fn handle_commandline_args(args: Args) -> Result<(gwas_utils::Reader, String, char, String)> {
     let mut file_rdr = open_reader(&args.input)?;
     let sep = match args.delim.as_str() {
-        "auto" => file_rdr.sniff()?,
+        "auto" => file_rdr.sniff_csv_delimiter()?,
         _ => get_delimeter_from_cli_argument(&args.delim)?,
     };
     let suffix = match args.suffix.is_empty() {

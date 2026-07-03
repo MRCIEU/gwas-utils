@@ -1,9 +1,11 @@
 use clap::Parser;
 use std::io;
 
-use gwas_utils::{GuError, Result, get_delimeter_from_cli_argument, open_reader, open_writer};
+use gwas_utils::{Result, get_delimeter_from_cli_argument, open_reader, open_writer};
 
-pub(crate) const ABOUT: &str = "Add a P column to a CSV file based on a LOG10P column";
+use crate::csv::err;
+
+pub(crate) const ABOUT: &str = "Add a P column to a CSV file based on a (minus) LOG10P column";
 pub(crate) const USAGE: &str = "gu csv addp infile.regenie[.gz] [-o outfile.regenie[.gz]]";
 
 pub(crate) fn get_usage() -> String {
@@ -20,7 +22,7 @@ pub(crate) struct Args {
     #[arg(short, long, default_value = "auto")]
     delim: String,
 
-    /// Name of column containing the LOG10P values
+    /// Name of column containing [optionally negative] LOG10P values
     #[arg(long, default_value = "LOG10P")]
     log10p: String,
 
@@ -40,7 +42,7 @@ fn handle_commandline_args(
     let mut file_rdr = open_reader(&args.input)?;
     let file_wtr = open_writer(&args.output)?;
     let sep = match args.delim.as_str() {
-        "auto" => file_rdr.sniff()?,
+        "auto" => file_rdr.sniff_csv_delimiter()?,
         _ => get_delimeter_from_cli_argument(&args.delim)?,
     };
     Ok((file_rdr, file_wtr, sep, args.log10p))
@@ -61,10 +63,7 @@ where
     let log10_p_col_idx = header
         .iter()
         .position(|h| h == log10_p_col)
-        .ok_or(GuError::Message(format!(
-            "Couldn't find {} column in file header",
-            log10_p_col
-        )))?;
+        .ok_or(err::column_not_found_error(&log10_p_col))?;
 
     header.push_field("P");
 
@@ -89,7 +88,8 @@ where
 }
 
 fn get_p_from_log10_p(log10_p: f64) -> f64 {
-    let mut p = f64::powf(10.0, -log10_p);
+    let temp = log10_p.abs() * -1.0; // Convert to negative number regardless of input sign (these are p-values so they must be <= 1)
+    let mut p = f64::powf(10.0, temp);
     if p == 0.0 {
         p = f64::MIN_POSITIVE;
     }
@@ -116,6 +116,10 @@ mod tests {
         assert_eq!(p, 0.1);
 
         log10_p = 2.0;
+        p = get_p_from_log10_p(log10_p);
+        assert_eq!(p, 0.01);
+
+        log10_p = -2.0;
         p = get_p_from_log10_p(log10_p);
         assert_eq!(p, 0.01);
     }

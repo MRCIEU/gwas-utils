@@ -3,8 +3,7 @@ use std::io;
 
 use gwas_utils::{Result, get_delimeter_from_cli_argument, open_reader, open_writer};
 
-pub(crate) const ABOUT: &str =
-    "Write a tab separated file with missing data replaced by \"NA\"s";
+pub(crate) const ABOUT: &str = "Write a tab separated file with missing data replaced by \"NA\"s";
 pub(crate) const USAGE: &str = "gu csv regenify infile.csv[.gz] [-o outfile.tsv[.gz]]";
 
 pub(crate) fn get_usage() -> String {
@@ -41,7 +40,7 @@ fn handle_commandline_args(
     let mut file_rdr = open_reader(&args.input)?;
     let file_wtr = open_writer(&args.output)?;
     let sep = match args.delim.as_str() {
-        "auto" => file_rdr.sniff()?,
+        "auto" => file_rdr.sniff_csv_delimiter()?,
         _ => get_delimeter_from_cli_argument(&args.delim)?,
     };
     Ok((file_rdr, file_wtr, args.no_rep_neg_one, sep))
