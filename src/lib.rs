@@ -62,7 +62,7 @@ impl Read for Reader {
 }
 
 impl Reader {
-    pub fn sniff(&mut self) -> Result<char> {
+    pub fn sniff_csv_delimiter(&mut self) -> Result<char> {
         let mut sample = vec![0u8; 8192];
         let n = match self {
             Reader::File(f) => f.read(&mut sample)?,
@@ -106,7 +106,7 @@ impl Reader {
 fn sniff_delimiter_from_sample(sample: &[u8]) -> Result<char> {
     let text = String::from_utf8_lossy(sample);
     let candidates = [',', '\t', ';', '|', ' '];
-    let mut best: Option<(char, usize)> = None;
+    let mut best: (char, usize) = (',', 0); // defaulting to comma if no better delimiter found means single-column csv files are still parsed correctly
 
     for &candidate in candidates.iter() {
         let mut count = 0;
@@ -116,18 +116,12 @@ fn sniff_delimiter_from_sample(sample: &[u8]) -> Result<char> {
         if count == 0 {
             continue;
         }
-        if let Some((_, best_count)) = best {
-            if count > best_count {
-                best = Some((candidate, count));
-            }
-        } else {
-            best = Some((candidate, count));
+        if count > best.1 {
+            best = (candidate, count);
         }
     }
 
-    best.map(|(d, _)| d).ok_or(GuError::Message(
-        "Unable to detect delimiter from input sample".into(),
-    ))
+    Ok(best.0)
 }
 
 fn count_delimiter_outside_quotes(line: &str, delimiter: char) -> usize {
@@ -157,7 +151,8 @@ pub fn open_reader(filename: &str) -> Result<Reader> {
         let f = std::io::stdin();
         return Ok(Reader::Stdin(f));
     }
-    let f = File::open(filename)?;
+    let f = File::open(filename)
+        .map_err(|_| GuError::Message(format!("No such file or directory: {}", filename)))?;
     if filename.ends_with(".gz") {
         let gz = GzDecoder::new(f);
         Ok(Reader::GzFile(gz))

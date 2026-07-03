@@ -48,7 +48,7 @@ fn handle_commandline_args(
         "auto" => {
             let mut seps: Vec<char> = Vec::new();
             for rdr in readers.iter_mut() {
-                seps.push(rdr.sniff()?);
+                seps.push(rdr.sniff_csv_delimiter()?);
             }
             if seps.iter().all(|&s| s == seps[0]) {
                 seps[0]

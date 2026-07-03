@@ -40,7 +40,7 @@ fn handle_commandline_args(
     let mut file_rdr = open_reader(&args.input)?;
     let file_wtr = open_writer(&args.output)?;
     let sep_in = match args.din.as_str() {
-        "auto" => file_rdr.sniff()?,
+        "auto" => file_rdr.sniff_csv_delimiter()?,
         _ => get_delimeter_from_cli_argument(&args.din)?,
     };
     let sep_out = get_delimeter_from_cli_argument(&args.delim)?;

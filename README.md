@@ -7,29 +7,6 @@ A distroless docker image with `gu` compiled on Alpine Linux using the Dockerfil
 `gu` is a work in progress - subcommands + API are both subject to change at the moment.
 
 
-## Subcommands
-
-`csv addp` - Add a P column to a CSV file based on a LOG10P column
-
-`csv concat` - Concatenate multiple CSV files into a single file
-
-`csv delim`  - Change the delimeter of a CSV file
-
-`csv filter` - Filter rows from a CSV file based on column-specific expressions
-
-`csv merge` - Merge two CSV files based on a shared column
-
-`csv regenify` - Write a tab separated CSV file with missing data replaced by "NA"s
-
-`csv reheader` - Reheader a CSV file
-
-`csv select` - Select specific columns from a CSV file
-
-`csv split` - Split a CSV file into multiple files based on the categories in a specified column
-
-`dn make_dxfuse_manifest` - Convert a list of DNAnexus file identifiers into a dxfuse manifest file
-
-
 ## Installation
 
 ### Locally
@@ -92,6 +69,11 @@ cargo build --release --target x86_64-unknown-linux-musl
       gu csv delim -d "\t" -o chr1.signif.tsv
   ```
 
+* `gu csv <SUBCOMMAND>` will automatically read and write gzipped files if the filenames end with `.gz`:
+
+  ```
+  gu csv regenify input.csv.gz -o output.tsv.gz
+  ```
 
 ## Help 
 
@@ -117,7 +99,7 @@ Tools for working with CSV files
 Usage: gu csv <COMMAND>
 
 Commands:
-  addp      Add a P column to a CSV file based on a LOG10P column
+  addp      Add a P column to a CSV file based on a (minus) LOG10P column
   concat    Concatenate multiple CSV files into a single file
   delim     Change the delimeter of a CSV file
   filter    Filter rows from a CSV file based on column-specific expressions
@@ -135,7 +117,7 @@ Options:
 
 ```
 ❯ gu csv addp -h
-Add a P column to a CSV file based on a LOG10P column
+Add a P column to a CSV file based on a (minus) LOG10P column
 
 Usage: gu csv addp infile.regenie[.gz] [-o outfile.regenie[.gz]]
 
@@ -144,7 +126,7 @@ Arguments:
 
 Options:
   -d, --delim <DELIM>    Delimiter for CSV file reading and writing [default: auto]
-      --log10p <LOG10P>  Name of column containing the LOG10P values [default: LOG10P]
+      --log10p <LOG10P>  Name of column containing [optionally negative] LOG10P values [default: LOG10P]
   -o, --output <OUTPUT>  CSV file to write (will be gzipped if filename ends with .gz) [default: stdout]
   -h, --help             Print help
   -V, --version          Print version
@@ -193,12 +175,12 @@ Arguments:
   [INPUT]  CSV file to process (can be gzipped if filename ends with .gz) [default: stdin]
 
 Options:
-  -e, --expression <EXPRESSION>...  Expression(s) to filter rows, in the format "COLUMN-NAME OPERATOR VALUE". Possible operators are: "==", "!=", ">=", "<=", ">", "<"
-      --any                         Rows will be included in the output if any expression is true (default is to include rows only if all expressions are true)
-  -d, --delim <DELIM>               Delimiter for CSV file reading and writing [default: auto]
-  -o, --output <OUTPUT>             CSV file to write (will be gzipped if filename ends with .gz) [default: stdout]
-  -h, --help                        Print help
-  -V, --version                     Print version
+  -f, --filter <FILTER>...  Expression(s) to filter rows, in the format "COLUMN-NAME OPERATOR VALUE". Possible operators are: "==", "!=", ">=", "<=", ">", "<"
+      --any                 Rows will be included in the output if any expression is true (default is to include rows only if all expressions are true)
+  -d, --delim <DELIM>       Delimiter for CSV file reading and writing [default: auto]
+  -o, --output <OUTPUT>     CSV file to write (will be gzipped if filename ends with .gz) [default: stdout]
+  -h, --help                Print help
+  -V, --version             Print version
 ```
 
 ```
