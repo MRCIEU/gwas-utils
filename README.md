@@ -64,7 +64,7 @@ cargo build --release --target x86_64-unknown-linux-musl
 * `gu csv <SUBCOMMAND>`s default to reading from `stdin` and writing to `stdout`, so you can chain multiple commands together to achieve what you want:
 
   ```
-  gu csv filter myfile.csv -e 'CHROM == 1' 'P < 5E-8' |\
+  gu csv filter myfile.csv -f 'CHROM == 1' 'P < 5E-8' |\
       gu csv select -c CHROM POS P |\
       gu csv delim -d "\t" -o chr1.signif.tsv
   ```
