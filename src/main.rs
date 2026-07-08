@@ -82,6 +82,15 @@ fn run() -> Result<(), SubcommandError> {
     add_subcommands!(
         csv_cmg, addp, concat, delim, filter, merge, regenify, reheader, select, split
     );
+    // csv_cmg = csv_cmg.subcommand(
+    //     Command::new("munge_sumstats")
+    //         .about(csv::munge_sumstats::ABOUT)
+    //         .override_usage(csv::munge_sumstats::get_usage())
+    //         .args(csv::munge_sumstats::Args::command().get_arguments())
+    //         .arg_required_else_help(true)
+    //         .hide(true)
+    // );
+
     add_subcommands!(dn_cmg, make_dxfuse_manifest);
 
     cmd = cmd.subcommand(csv_cmg).subcommand(dn_cmg);

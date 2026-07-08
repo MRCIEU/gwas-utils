@@ -4,6 +4,8 @@ use std::io;
 
 use gwas_utils::{GuError, Result, get_delimeter_from_cli_argument, open_reader, open_writer};
 
+use crate::csv::err;
+
 pub(crate) const ABOUT: &str =
     "Split a CSV file into multiple files based on unique values in a specified categorical column";
 pub(crate) const USAGE: &str = "gu csv split infile.csv[.gz] -c colname";
@@ -60,14 +62,10 @@ where
         .from_reader(rdr);
 
     let header = csv_rdr.headers()?.clone();
-    let column_index =
-        header
-            .iter()
-            .position(|h| h == column_to_split_on)
-            .ok_or(GuError::Message(format!(
-                "Column '{}' not found in CSV headers",
-                column_to_split_on
-            )))?;
+    let column_index = header
+        .iter()
+        .position(|h| h == column_to_split_on)
+        .ok_or(err::column_not_found_error(&column_to_split_on))?;
 
     let mut file_handles: HashMap<String, csv::Writer<gwas_utils::Writer>> = HashMap::new();
     for result in csv_rdr.records() {

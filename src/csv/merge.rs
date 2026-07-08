@@ -130,7 +130,7 @@ where
         let record = result?;
         let key_value = record
             .get(key_column_idx)
-            .ok_or(err::column_not_found_error(&merge_column2))?
+            .ok_or(err::column_idx_out_of_bounds())?
             .to_string();
         if let Some(matching_record) = loaded.get(&key_value) {
             let combined_record = combine_records(matching_record.clone(), record, key_column_idx)?;
@@ -171,7 +171,7 @@ where
         let record = result?;
         let key_value = record
             .get(key_column_idx)
-            .ok_or(err::column_not_found_error(&key))?
+            .ok_or(err::column_idx_out_of_bounds())?
             .to_string();
         map.insert(key_value, record.clone());
     }
