@@ -5,8 +5,9 @@ use crate::csv::err;
 use gwas_utils::{GuError, Result, get_delimeter_from_cli_argument, open_reader, open_writer};
 
 pub(crate) const ABOUT: &str = "Filter rows from a CSV file based on column-specific expressions";
-pub(crate) const USAGE: &str =
-    "gu csv filter infile.csv[.gz] -f 'sex == male' 'age > 5' ... [-o outfile.csv[.gz]]";
+pub(crate) const USAGE: &str = r#"
+    gu csv filter infile.csv[.gz] -e 'sex == male' 'age > 5' ... [-o outfile.csv[.gz]]
+    gu csv filter infile.csv[.gz] -c ALLELE1 -r "^[ACGT]$" [-o outfile.csv[.gz]]"#;
 
 pub(crate) fn get_usage() -> String {
     USAGE.to_string()
@@ -18,13 +19,25 @@ pub(crate) struct Args {
     #[arg(default_value = "stdin")]
     input: String,
 
-    /// Expression(s) to filter rows, in the format "COLUMN-NAME OPERATOR VALUE". Possible operators are: "==", "!=", ">=", "<=", ">", "<".
-    #[arg(short, long, num_args=1..)]
-    filter: Vec<String>,
+    /// Expression(s) to filter rows, in the format "COLUMN-NAME OPERATOR VALUE". Possible operators are: "==", "!=", ">=", "<=", ">", "<"
+    #[arg(short, long, num_args=1.., conflicts_with = "regex", conflicts_with = "column")]
+    expression: Vec<String>,
 
     /// Rows will be included in the output if any expression is true (default is to include rows only if all expressions are true)
     #[arg(long, default_value_t = false)]
     any: bool,
+
+    /// A single column name whose values will be matched against a single regular expression
+    #[arg(short, long, requires = "regex")]
+    column: Option<String>,
+
+    /// Regular expression to apply (to the values in the column specified by -c)
+    #[arg(short, long, requires = "column")]
+    regex: Option<String>,
+
+    /// Invert the logic of the filter, i.e. keep rows that do NOT match the expression(s) or regex
+    #[arg(short = 'v', long = "invert", default_value_t = false)]
+    invert: bool,
 
     /// Delimiter for CSV file reading and writing
     #[arg(short, long, default_value = "auto")]
@@ -36,8 +49,26 @@ pub(crate) struct Args {
 }
 
 pub(crate) fn run(args: Args) -> Result<()> {
-    let (file_rdr, file_wtr, sep, filters, any) = handle_commandline_args(args)?;
-    process_file(file_rdr, file_wtr, sep, filters, any)
+    let (file_rdr, file_wtr, sep, filters, any, invert) = handle_commandline_args(args)?;
+    process_file(file_rdr, file_wtr, sep, filters, any, invert)
+}
+
+enum RowFilter {
+    Expressions(Vec<ColumnExpression>),
+    Regex(ColumnRegex),
+}
+
+struct ColumnExpression {
+    column_name: String,
+    column_idx: usize,
+    operator: Operator,
+    value: String,
+}
+
+struct ColumnRegex {
+    column_name: String,
+    column_idx: usize,
+    regex: regex::Regex,
 }
 
 fn handle_commandline_args(
@@ -46,7 +77,8 @@ fn handle_commandline_args(
     gwas_utils::Reader,
     gwas_utils::Writer,
     char,
-    Vec<ColumnFilter>,
+    RowFilter,
+    bool,
     bool,
 )> {
     let mut file_rdr = open_reader(&args.input)?;
@@ -55,8 +87,24 @@ fn handle_commandline_args(
         "auto" => file_rdr.sniff_csv_delimiter()?,
         _ => get_delimeter_from_cli_argument(&args.delim)?,
     };
-    let filters = parse_filters(args.filter)?;
-    Ok((file_rdr, file_wtr, sep, filters, args.any))
+    let filters = if !args.expression.is_empty() {
+        RowFilter::Expressions(parse_expressions(args.expression)?)
+    } else if let Some(ref regex_str) = args.regex {
+        let regex = regex::Regex::new(regex_str)?;
+        match args.column {
+            Some(ref col_name) => RowFilter::Regex(ColumnRegex {
+                column_name: col_name.clone(),
+                column_idx: 0, // This MUST be set later
+                regex,
+            }),
+            _ => unreachable!(), // This case is already handled by clap's requires attribute
+        }
+    } else {
+        return Err(GuError::Message(
+            "Either --filter or --regex (and --column) must be provided".into(),
+        ));
+    };
+    Ok((file_rdr, file_wtr, sep, filters, args.any, args.invert))
 }
 
 enum Operator {
@@ -109,30 +157,23 @@ impl Operator {
     }
 }
 
-struct ColumnFilter {
-    column_name: String,
-    column_idx: usize,
-    operator: Operator,
-    value: String,
-}
-
-fn parse_filters(expressions: Vec<String>) -> Result<Vec<ColumnFilter>> {
+fn parse_expressions(expressions: Vec<String>) -> Result<Vec<ColumnExpression>> {
     expressions
         .into_iter()
-        .map(|expr| parse_filter(&expr))
+        .map(|expr| parse_expression(&expr))
         .collect()
 }
 
-fn parse_filter(expr: &str) -> Result<ColumnFilter> {
+fn parse_expression(expr: &str) -> Result<ColumnExpression> {
     let operators = ["==", "!=", ">=", "<=", ">", "<"];
     for op in operators {
         if let Some(idx) = expr.find(op) {
             let column_name = expr[..idx].trim();
             let value = expr[idx + op.len()..].trim();
             let operator = Operator::from_str(op)?;
-            return Ok(ColumnFilter {
+            return Ok(ColumnExpression {
                 column_name: column_name.to_string(),
-                column_idx: 0, // will be set later based on header
+                column_idx: 0, // MUST be set later based on header
                 operator,
                 value: value.to_string(),
             });
@@ -148,8 +189,9 @@ fn process_file<R, W>(
     rdr: R,
     wtr: W,
     sep: char,
-    mut filters: Vec<ColumnFilter>,
+    mut filters: RowFilter,
     any: bool,
+    invert: bool,
 ) -> Result<()>
 where
     R: io::Read,
@@ -162,38 +204,58 @@ where
 
     let header = csv_rdr.headers()?.clone();
 
-    // Set column indices for filters based on header
-    for filter in &mut filters {
-        filter.column_idx = header
-            .iter()
-            .position(|h| h == filter.column_name)
-            .ok_or(err::column_not_found_error(&filter.column_name))?;
-    }
-
     let mut csv_wtr = csv::WriterBuilder::new()
         .delimiter(sep as u8)
         .from_writer(wtr);
+
+    // Set column indices for filters based on header
+    match &mut filters {
+        RowFilter::Expressions(exprs) => {
+            for expr in exprs.iter_mut() {
+                expr.column_idx = header
+                    .iter()
+                    .position(|h| h == expr.column_name)
+                    .ok_or(err::column_not_found_error(&expr.column_name))?;
+            }
+        }
+        RowFilter::Regex(regex) => {
+            regex.column_idx = header
+                .iter()
+                .position(|h| h == regex.column_name)
+                .ok_or(err::column_not_found_error(&regex.column_name))?;
+        }
+    }
 
     csv_wtr.write_record(&header)?;
 
     for result in csv_rdr.records() {
         let record = result?;
-        let tests: Vec<bool> = filters
-            .iter()
-            .map(|filter| {
+        let tests: Vec<bool> = match &filters {
+            RowFilter::Expressions(exprs) => exprs
+                .iter()
+                .map(|expr| {
+                    let value = record
+                        .get(expr.column_idx)
+                        .ok_or(err::column_idx_out_of_bounds())?;
+                    expr.operator.compare(value, &expr.value)
+                })
+                .collect::<Result<Vec<bool>>>()?,
+            RowFilter::Regex(cr) => {
                 let value = record
-                    .get(filter.column_idx)
-                    .ok_or(GuError::Message("Column index out of bounds".into()))?;
-                filter.operator.compare(value, &filter.value)
-            })
-            .collect::<Result<Vec<bool>>>()?;
+                    .get(cr.column_idx)
+                    .ok_or(err::column_idx_out_of_bounds())?;
+                vec![cr.regex.is_match(value)]
+            }
+        };
 
-        let keep_row = if any {
+        let mut keep_row = if any {
             tests.into_iter().any(|b| b)
         } else {
             tests.into_iter().all(|b| b)
         };
-
+        if invert {
+            keep_row = !keep_row;
+        }
         if keep_row {
             csv_wtr.write_record(&record)?;
         }
@@ -208,11 +270,11 @@ where
 mod tests {
     use std::io::Cursor;
 
+    use regex::Regex;
+
     use super::*;
 
-    #[test]
-    fn test_filter_csv_1() {
-        let input = r#"CHROM GENPOS ID ALLELE0 ALLELE1 A1FREQ INFO N TEST BETA SE CHISQ LOG10P EXTRA
+    const INPUT_1: &str = r#"CHROM GENPOS ID ALLELE0 ALLELE1 A1FREQ INFO N TEST BETA SE CHISQ LOG10P EXTRA
 1 1 1 2 1 0.214575 1 494 ADD 0.0775674 0.230001 0.113736 0.133163 NA
 1 2 2 2 1 0.218623 1 494 ADD 0.131068 0.239808 0.29872 0.233077 NA
 1 3 3 2 1 0.211538 1 494 ADD -0.256723 0.244611 1.10148 0.531739 NA
@@ -225,34 +287,52 @@ mod tests {
 2 5 9 2 1 0.194332 1 494 ADD 0.283254 0.241072 1.38057 0.619781 NA
 "#;
 
+    #[test]
+    fn test_filter_csv_expression_1() {
         let mut wtr = Cursor::new(Vec::new());
-        let filters = vec![
-            parse_filter("CHROM == 1").unwrap(),
-            parse_filter("GENPOS < 3").unwrap(),
+        let expressions = vec![
+            parse_expression("CHROM == 1").unwrap(),
+            parse_expression("GENPOS < 3").unwrap(),
         ];
+        let filters = RowFilter::Expressions(expressions);
         process_file(
-            std::io::Cursor::new(input.as_bytes()),
+            std::io::Cursor::new(INPUT_1.as_bytes()),
             &mut wtr,
             ' ',
             filters,
             false,
+            false,
         )
         .unwrap();
 
-        let desired_result =
-            r#"CHROM GENPOS ID ALLELE0 ALLELE1 A1FREQ INFO N TEST BETA SE CHISQ LOG10P EXTRA
+        let desired_result = r#"CHROM GENPOS ID ALLELE0 ALLELE1 A1FREQ INFO N TEST BETA SE CHISQ LOG10P EXTRA
 1 1 1 2 1 0.214575 1 494 ADD 0.0775674 0.230001 0.113736 0.133163 NA
 1 2 2 2 1 0.218623 1 494 ADD 0.131068 0.239808 0.29872 0.233077 NA
-"#
-            .to_string();
+"#;
 
         let result_str = String::from_utf8(wtr.into_inner()).unwrap();
         assert_eq!(result_str, desired_result);
     }
 
     #[test]
-    fn test_filter_csv_2() {
-        let input = r#"CHROM GENPOS ID ALLELE0 ALLELE1 A1FREQ INFO N TEST BETA SE CHISQ LOG10P EXTRA
+    fn test_filter_csv_expression_2() {
+        let mut wtr = Cursor::new(Vec::new());
+        let expressions = vec![
+            parse_expression("CHROM == 1").unwrap(),
+            parse_expression("GENPOS < 3").unwrap(),
+        ];
+        let filters = RowFilter::Expressions(expressions);
+        process_file(
+            std::io::Cursor::new(INPUT_1.as_bytes()),
+            &mut wtr,
+            ' ',
+            filters,
+            true,
+            false,
+        )
+        .unwrap();
+
+        let desired_result = r#"CHROM GENPOS ID ALLELE0 ALLELE1 A1FREQ INFO N TEST BETA SE CHISQ LOG10P EXTRA
 1 1 1 2 1 0.214575 1 494 ADD 0.0775674 0.230001 0.113736 0.133163 NA
 1 2 2 2 1 0.218623 1 494 ADD 0.131068 0.239808 0.29872 0.233077 NA
 1 3 3 2 1 0.211538 1 494 ADD -0.256723 0.244611 1.10148 0.531739 NA
@@ -260,36 +340,82 @@ mod tests {
 1 5 5 2 1 0.195344 1 494 ADD -0.187228 0.235372 0.632751 0.370236 NA
 2 1 5 2 1 0.195344 1 494 ADD -0.187228 0.235372 0.632751 0.370236 NA
 2 2 6 2 1 0.190283 1 494 ADD -0.234935 0.245557 0.91536 0.47019 NA
+"#;
+
+        let result_str = String::from_utf8(wtr.into_inner()).unwrap();
+        assert_eq!(result_str, desired_result);
+    }
+
+    #[test]
+    fn test_filter_csv_expression_3() {
+        let mut wtr = Cursor::new(Vec::new());
+        let expressions = vec![
+            parse_expression("CHROM == 1").unwrap(),
+            parse_expression("GENPOS < 3").unwrap(),
+        ];
+        let filters = RowFilter::Expressions(expressions);
+        process_file(
+            std::io::Cursor::new(INPUT_1.as_bytes()),
+            &mut wtr,
+            ' ',
+            filters,
+            true,
+            true,
+        )
+        .unwrap();
+
+        let desired_result = r#"CHROM GENPOS ID ALLELE0 ALLELE1 A1FREQ INFO N TEST BETA SE CHISQ LOG10P EXTRA
 2 3 7 2 1 0.206478 1 494 ADD 0.11647 0.227747 0.26153 0.215332 NA
 2 4 8 2 1 0.188259 1 494 ADD -0.353772 0.251712 1.97533 0.796197 NA
 2 5 9 2 1 0.194332 1 494 ADD 0.283254 0.241072 1.38057 0.619781 NA
 "#;
 
+        let result_str = String::from_utf8(wtr.into_inner()).unwrap();
+        assert_eq!(result_str, desired_result);
+    }
+
+    const INPUT_2: &str = r#"CHROM GENPOS ID ALLELE0 ALLELE1 A1FREQ INFO N TEST BETA SE CHISQ LOG10P EXTRA P
+1 10177 rs367896724 A AC 0.399182 0.467344 431905 ADD 0.00104685 0.0196785 0.00282999 0.0188275 NA 9.575743403984572E-1
+1 10352 rs201106462 T TA 0.393553 0.445866 431905 ADD 0.00137097 0.0202538 0.00458187 0.0240938 NA 9.460328127840342E-1
+1 11008 rs575272151 C G 0.0864556 0.489737 431905 ADD -0.0722032 0.0335861 4.6216 1.5007 NA 3.157184776270302E-2
+1 11012 rs544419019 C G 0.0864556 0.489737 431905 ADD -0.0722032 0.0335861 4.6216 1.5007 NA 3.157184776270302E-2
+1 13110 rs540538026 G A 0.0586336 0.393327 431905 ADD 0.0161315 0.0448123 0.129586 0.143354 NA 7.188627832021395E-1
+1 13116 rs62635286 T G 0.188409 0.405791 431905 ADD -0.0782135 0.0265767 8.66085 2.48796 NA 3.2511724041093563E-3
+1 13118 rs62028691 A G 0.188409 0.405791 431905 ADD -0.0782135 0.0265767 8.66085 2.48796 NA 3.2511724041093563E-3
+1 13273 rs531730856 G C 0.133681 0.391669 431905 ADD -0.0387499 0.0310955 1.55291 0.672219 NA 2.1270661680612096E-1
+1 14464 rs546169444 A T 0.156332 0.412176 431905 ADD 0.0142828 0.0283094 0.254544 0.211907 NA 6.138934504878375E-1
+1 14599 rs531646671 T A 0.191031 0.425425 431905 ADD 4.03962e-05 0.0257477 2.46153e-06 0.000544 NA 9.987481778932121E-1
+"#;
+
+    #[test]
+    fn test_filter_csv_regex_1() {
         let mut wtr = Cursor::new(Vec::new());
-        let filters = vec![
-            parse_filter("CHROM == 1").unwrap(),
-            parse_filter("GENPOS < 3").unwrap(),
-        ];
+        let regex = ColumnRegex {
+            column_name: "ALLELE1".to_string(),
+            column_idx: 0, // This MUST be set later
+            regex: Regex::new("^[ACGT]$").unwrap(),
+        };
+        let filters = RowFilter::Regex(regex);
         process_file(
-            std::io::Cursor::new(input.as_bytes()),
+            std::io::Cursor::new(INPUT_2.as_bytes()),
             &mut wtr,
             ' ',
             filters,
-            true,
+            false,
+            false,
         )
         .unwrap();
 
-        let desired_result =
-            r#"CHROM GENPOS ID ALLELE0 ALLELE1 A1FREQ INFO N TEST BETA SE CHISQ LOG10P EXTRA
-1 1 1 2 1 0.214575 1 494 ADD 0.0775674 0.230001 0.113736 0.133163 NA
-1 2 2 2 1 0.218623 1 494 ADD 0.131068 0.239808 0.29872 0.233077 NA
-1 3 3 2 1 0.211538 1 494 ADD -0.256723 0.244611 1.10148 0.531739 NA
-1 4 4 2 1 0.191296 1 494 ADD -0.131175 0.250523 0.274164 0.221449 NA
-1 5 5 2 1 0.195344 1 494 ADD -0.187228 0.235372 0.632751 0.370236 NA
-2 1 5 2 1 0.195344 1 494 ADD -0.187228 0.235372 0.632751 0.370236 NA
-2 2 6 2 1 0.190283 1 494 ADD -0.234935 0.245557 0.91536 0.47019 NA
-"#
-            .to_string();
+        let desired_result = r#"CHROM GENPOS ID ALLELE0 ALLELE1 A1FREQ INFO N TEST BETA SE CHISQ LOG10P EXTRA P
+1 11008 rs575272151 C G 0.0864556 0.489737 431905 ADD -0.0722032 0.0335861 4.6216 1.5007 NA 3.157184776270302E-2
+1 11012 rs544419019 C G 0.0864556 0.489737 431905 ADD -0.0722032 0.0335861 4.6216 1.5007 NA 3.157184776270302E-2
+1 13110 rs540538026 G A 0.0586336 0.393327 431905 ADD 0.0161315 0.0448123 0.129586 0.143354 NA 7.188627832021395E-1
+1 13116 rs62635286 T G 0.188409 0.405791 431905 ADD -0.0782135 0.0265767 8.66085 2.48796 NA 3.2511724041093563E-3
+1 13118 rs62028691 A G 0.188409 0.405791 431905 ADD -0.0782135 0.0265767 8.66085 2.48796 NA 3.2511724041093563E-3
+1 13273 rs531730856 G C 0.133681 0.391669 431905 ADD -0.0387499 0.0310955 1.55291 0.672219 NA 2.1270661680612096E-1
+1 14464 rs546169444 A T 0.156332 0.412176 431905 ADD 0.0142828 0.0283094 0.254544 0.211907 NA 6.138934504878375E-1
+1 14599 rs531646671 T A 0.191031 0.425425 431905 ADD 4.03962e-05 0.0257477 2.46153e-06 0.000544 NA 9.987481778932121E-1
+"#;
 
         let result_str = String::from_utf8(wtr.into_inner()).unwrap();
         assert_eq!(result_str, desired_result);

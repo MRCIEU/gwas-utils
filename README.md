@@ -64,7 +64,7 @@ cargo build --release --target x86_64-unknown-linux-musl
 * `gu csv <SUBCOMMAND>`s default to reading from `stdin` and writing to `stdout`, so you can chain multiple commands together to achieve what you want:
 
   ```
-  gu csv filter myfile.csv -f 'CHROM == 1' 'P < 5E-8' |\
+  gu csv filter myfile.csv -e 'CHROM == 1' 'P < 5E-8' |\
       gu csv select -c CHROM POS P |\
       gu csv delim -d "\t" -o chr1.signif.tsv
   ```
@@ -169,18 +169,23 @@ Options:
 ❯ gu csv filter -h
 Filter rows from a CSV file based on column-specific expressions
 
-Usage: gu csv filter infile.csv[.gz] -f 'sex == male' 'age > 5' ... [-o outfile.csv[.gz]]
+Usage: 
+    gu csv filter infile.csv[.gz] -e 'sex == male' 'age > 5' ... [-o outfile.csv[.gz]]
+    gu csv filter infile.csv[.gz] -c ALLELE1 -r "^[ACGT]$" [-o outfile.csv[.gz]]
 
 Arguments:
   [INPUT]  CSV file to process (can be gzipped if filename ends with .gz) [default: stdin]
 
 Options:
-  -f, --filter <FILTER>...  Expression(s) to filter rows, in the format "COLUMN-NAME OPERATOR VALUE". Possible operators are: "==", "!=", ">=", "<=", ">", "<"
-      --any                 Rows will be included in the output if any expression is true (default is to include rows only if all expressions are true)
-  -d, --delim <DELIM>       Delimiter for CSV file reading and writing [default: auto]
-  -o, --output <OUTPUT>     CSV file to write (will be gzipped if filename ends with .gz) [default: stdout]
-  -h, --help                Print help
-  -V, --version             Print version
+  -e, --expression <EXPRESSION>...  Expression(s) to filter rows, in the format "COLUMN-NAME OPERATOR VALUE". Possible operators are: "==", "!=", ">=", "<=", ">", "<"
+      --any                         Rows will be included in the output if any expression is true (default is to include rows only if all expressions are true)
+  -c, --column <COLUMN>             A single column name whose values will be matched against a single regular expression
+  -r, --regex <REGEX>               Regular expression to apply (to the values in the column specified by -c)
+  -v, --invert                      Invert the logic of the filter, i.e. keep rows that do NOT match the expression(s) or regex
+  -d, --delim <DELIM>               Delimiter for CSV file reading and writing [default: auto]
+  -o, --output <OUTPUT>             CSV file to write (will be gzipped if filename ends with .gz) [default: stdout]
+  -h, --help                        Print help
+  -V, --version                     Print version
 ```
 
 ```
