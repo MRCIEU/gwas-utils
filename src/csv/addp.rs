@@ -75,9 +75,10 @@ where
 
     for result in csv_rdr.records() {
         let mut record = result?;
-        let log10_p: f64 = record[log10_p_col_idx].parse()?;
-        let p = get_p_from_log10_p(log10_p);
-        let ps = format!("{:E}", p);
+        let log10_p_val = record
+            .get(log10_p_col_idx)
+            .ok_or(err::column_idx_out_of_bounds())?;
+        let ps = get_p_from_log10_p(log10_p_val)?;
         record.push_field(&ps);
         csv_wtr.write_record(&record)?;
     }
@@ -87,13 +88,18 @@ where
     Ok(())
 }
 
-fn get_p_from_log10_p(log10_p: f64) -> f64 {
-    let temp = log10_p.abs() * -1.0; // Convert to negative number regardless of input sign (these are p-values so they must be <= 1)
-    let mut p = f64::powf(10.0, temp);
-    if p == 0.0 {
-        p = f64::MIN_POSITIVE;
+fn get_p_from_log10_p(log10_p_val: &str) -> Result<String> {
+    match log10_p_val.parse::<f64>() {
+        Ok(log10_p) => {
+            let temp = log10_p.abs() * -1.0; // Convert to negative number regardless of input sign (these are p-values so they must be <= 1)
+            let mut p = f64::powf(10.0, temp);
+            if p == 0.0 {
+                p = f64::MIN_POSITIVE;
+            }
+            Ok(format!("{:E}", p))
+        }
+        Err(_) => Ok("NA".into()),
     }
-    p
 }
 
 #[cfg(test)]
@@ -104,24 +110,24 @@ mod tests {
 
     #[test]
     fn test_precision() {
-        let log10_p = 1000.0;
-        let p = get_p_from_log10_p(log10_p);
-        assert_eq!(p, f64::MIN_POSITIVE);
+        let log10_p = "1000.0";
+        let p = get_p_from_log10_p(log10_p).unwrap();
+        assert_eq!(p, format!("{:E}", f64::MIN_POSITIVE));
     }
 
     #[test]
     fn test_get_p_value() {
-        let mut log10_p = 1.0;
-        let mut p = get_p_from_log10_p(log10_p);
-        assert_eq!(p, 0.1);
+        let mut log10_p = "1.0";
+        let p = get_p_from_log10_p(log10_p).unwrap();
+        assert_eq!(p, format!("{:E}", 0.1));
 
-        log10_p = 2.0;
-        p = get_p_from_log10_p(log10_p);
-        assert_eq!(p, 0.01);
+        log10_p = "2.0";
+        let p = get_p_from_log10_p(log10_p).unwrap();
+        assert_eq!(p, format!("{:E}", 0.01));
 
-        log10_p = -2.0;
-        p = get_p_from_log10_p(log10_p);
-        assert_eq!(p, 0.01);
+        log10_p = "-2.0";
+        let p = get_p_from_log10_p(log10_p).unwrap();
+        assert_eq!(p, format!("{:E}", 0.01));
     }
 
     #[test]
