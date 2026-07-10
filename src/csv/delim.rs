@@ -3,6 +3,8 @@ use std::io;
 
 use gwas_utils::{Result, get_delimeter_from_cli_argument, open_reader, open_writer};
 
+use crate::csv::lib::{get_csv_reader, get_csv_writer};
+
 pub(crate) const ABOUT: &str = "Change the delimeter of a CSV file";
 pub(crate) const USAGE: &str = "gu csv delim infile.csv[.gz] -d\"\\t\" [-o outfile.tsv[.gz]]";
 
@@ -52,17 +54,10 @@ where
     R: io::Read,
     W: io::Write,
 {
-    let mut csv_rdr = csv::ReaderBuilder::new()
-        .has_headers(true)
-        .delimiter(sep_in as u8)
-        .from_reader(rdr);
-
+    let mut csv_rdr = get_csv_reader(rdr, sep_in);
     let header = csv_rdr.headers()?.clone();
 
-    let mut csv_wtr = csv::WriterBuilder::new()
-        .delimiter(sep_out as u8)
-        .from_writer(wtr);
-
+    let mut csv_wtr = get_csv_writer(wtr, sep_out);
     csv_wtr.write_record(&header)?;
 
     for result in csv_rdr.records() {

@@ -3,6 +3,8 @@ use std::io;
 
 use gwas_utils::{Result, get_delimeter_from_cli_argument, open_reader, open_writer};
 
+use crate::csv::lib::{get_csv_reader, get_csv_writer};
+
 pub(crate) const ABOUT: &str = "Write a tab separated file with missing data replaced by \"NA\"s";
 pub(crate) const USAGE: &str = "gu csv regenify infile.csv[.gz] [-o outfile.tsv[.gz]]";
 
@@ -51,15 +53,10 @@ where
     R: io::Read,
     W: io::Write,
 {
-    let mut csv_rdr = csv::ReaderBuilder::new()
-        .has_headers(true)
-        .delimiter(sep as u8)
-        .from_reader(rdr);
-
+    let mut csv_rdr = get_csv_reader(rdr, sep);
     let header = csv_rdr.headers()?.clone();
 
-    let mut csv_wtr = csv::WriterBuilder::new().delimiter(b'\t').from_writer(wtr);
-
+    let mut csv_wtr = get_csv_writer(wtr, '\t');
     csv_wtr.write_record(&header)?;
 
     for result in csv_rdr.records() {
@@ -76,7 +73,6 @@ where
             }
             record.push_field(field);
         }
-
         csv_wtr.write_record(&record)?;
     }
 

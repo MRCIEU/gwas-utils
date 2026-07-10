@@ -3,7 +3,7 @@ use std::{collections::HashMap, io};
 
 use gwas_utils::{GuError, Result, get_delimeter_from_cli_argument, open_reader, open_writer};
 
-use crate::csv::err;
+use crate::csv::lib::{column_not_found_error, get_csv_reader, get_csv_writer};
 
 pub(crate) const ABOUT: &str = "Reheader a CSV file";
 pub(crate) const USAGE: &str = r#"
@@ -21,11 +21,11 @@ pub(crate) struct Args {
     input: String,
 
     /// New header to write (format: list of strings corresponding to new columm names)
-    #[arg(short, long, conflicts_with = "columns", num_args = 1..)]
+    #[arg(short, long, num_args = 1.., conflicts_with = "columns")]
     list: Vec<String>,
 
     /// Specific columns to rename (format: oldcolumn=newcolumn for arbitrary number of columns)
-    #[arg(short, long, num_args = 1..)]
+    #[arg(short, long, num_args = 1.., conflicts_with = "list")]
     columns: Vec<String>,
 
     /// Delimiter for CSV file reading and writing
@@ -99,16 +99,9 @@ where
     R: io::Read,
     W: io::Write,
 {
-    let mut csv_rdr = csv::ReaderBuilder::new()
-        .has_headers(true)
-        .delimiter(sep as u8)
-        .from_reader(rdr);
+    let mut csv_rdr = get_csv_reader(rdr, sep);
 
-    let mut csv_wtr = csv::WriterBuilder::new()
-        .has_headers(true)
-        .delimiter(sep as u8)
-        .from_writer(wtr);
-
+    let mut csv_wtr = get_csv_writer(wtr, sep);
     let header = csv_rdr.headers()?.clone();
 
     if let Some(newheader) = newheader {
@@ -126,7 +119,7 @@ where
             if let Some(idx) = header.iter().position(|h| h == old_col) {
                 new_header[idx] = new_col;
             } else {
-                return Err(err::column_not_found_error(&old_col));
+                return Err(column_not_found_error(&old_col));
             }
         }
         csv_wtr.write_record(&new_header)?;
