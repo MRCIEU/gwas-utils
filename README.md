@@ -100,6 +100,7 @@ Usage: gu csv <COMMAND>
 
 Commands:
   addp      Add a P column to a CSV file based on a (minus) LOG10P column
+  addz      Add a Z-score column to a CSV file based on a beta column and a standard error column
   concat    Concatenate multiple CSV files into a single file
   delim     Change the delimeter of a CSV file
   filter    Filter rows from a CSV file based on column-specific expressions
@@ -127,6 +128,24 @@ Arguments:
 Options:
   -d, --delim <DELIM>    Delimiter for CSV file reading and writing [default: auto]
       --log10p <LOG10P>  Name of column containing [optionally negative] LOG10P values [default: LOG10P]
+  -o, --output <OUTPUT>  CSV file to write (will be gzipped if filename ends with .gz) [default: stdout]
+  -h, --help             Print help
+  -V, --version          Print version
+```
+
+```
+❯ gu csv addz -h
+Add a Z-score column to a CSV file based on a beta column and a standard error column
+
+Usage: gu csv addz infile.regenie[.gz] [-o outfile.regenie[.gz]]
+
+Arguments:
+  [INPUT]  CSV file to process (can be gzipped if filename ends with .gz) [default: stdin]
+
+Options:
+  -d, --delim <DELIM>    Delimiter for CSV file reading and writing [default: auto]
+      --beta <BETA>      Name of column containing [optionally negative] BETA values [default: BETA]
+      --se <SE>          Name of column containing standard error values [default: SE]
   -o, --output <OUTPUT>  CSV file to write (will be gzipped if filename ends with .gz) [default: stdout]
   -h, --help             Print help
   -V, --version          Print version

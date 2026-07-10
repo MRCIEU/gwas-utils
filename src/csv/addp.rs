@@ -3,7 +3,9 @@ use std::io;
 
 use gwas_utils::{Result, get_delimeter_from_cli_argument, open_reader, open_writer};
 
-use crate::csv::err;
+use crate::csv::lib::{
+    get_column_idx_from_name, get_column_value_from_idx, get_csv_reader, get_csv_writer,
+};
 
 pub(crate) const ABOUT: &str = "Add a P column to a CSV file based on a (minus) LOG10P column";
 pub(crate) const USAGE: &str = "gu csv addp infile.regenie[.gz] [-o outfile.regenie[.gz]]";
@@ -53,31 +55,17 @@ where
     R: io::Read,
     W: io::Write,
 {
-    let mut csv_rdr = csv::ReaderBuilder::new()
-        .has_headers(true)
-        .delimiter(sep as u8)
-        .from_reader(rdr);
-
+    let mut csv_rdr = get_csv_reader(rdr, sep);
     let mut header = csv_rdr.headers()?.clone();
-
-    let log10_p_col_idx = header
-        .iter()
-        .position(|h| h == log10_p_col)
-        .ok_or(err::column_not_found_error(&log10_p_col))?;
-
+    let log10_p_col_idx = get_column_idx_from_name(&header, &log10_p_col)?;
     header.push_field("P");
 
-    let mut csv_wtr = csv::WriterBuilder::new()
-        .delimiter(sep as u8)
-        .from_writer(wtr);
-
+    let mut csv_wtr = get_csv_writer(wtr, sep);
     csv_wtr.write_record(&header)?;
 
     for result in csv_rdr.records() {
         let mut record = result?;
-        let log10_p_val = record
-            .get(log10_p_col_idx)
-            .ok_or(err::column_idx_out_of_bounds())?;
+        let log10_p_val = get_column_value_from_idx(&record, log10_p_col_idx)?;
         let ps = get_p_from_log10_p(log10_p_val)?;
         record.push_field(&ps);
         csv_wtr.write_record(&record)?;

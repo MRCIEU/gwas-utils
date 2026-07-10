@@ -3,7 +3,7 @@ use std::io;
 
 use gwas_utils::{Result, get_delimeter_from_cli_argument, open_reader, open_writer};
 
-use crate::csv::err;
+use crate::csv::lib::{column_not_found_error, get_csv_reader, get_csv_writer};
 
 pub(crate) const ABOUT: &str = "Select specific columns from a CSV file";
 pub(crate) const USAGE: &str =
@@ -70,16 +70,12 @@ where
     R: io::Read,
     W: io::Write,
 {
-    let mut csv_rdr = csv::ReaderBuilder::new()
-        .has_headers(true)
-        .delimiter(sep as u8)
-        .from_reader(rdr);
-
+    let mut csv_rdr = get_csv_reader(rdr, sep);
     let header = csv_rdr.headers()?.clone();
 
     for column in &columns_to_select {
         if !header.iter().any(|h| h == column) {
-            return Err(err::column_not_found_error(column));
+            return Err(column_not_found_error(column));
         }
     }
 
@@ -101,10 +97,7 @@ where
         .map(|&i| &header[i])
         .collect::<Vec<_>>();
 
-    let mut csv_wtr = csv::WriterBuilder::new()
-        .delimiter(sep as u8)
-        .from_writer(wtr);
-
+    let mut csv_wtr = get_csv_writer(wtr, sep);
     csv_wtr.write_record(&header_reduced)?;
 
     for result in csv_rdr.records() {

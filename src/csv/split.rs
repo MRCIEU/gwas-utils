@@ -4,7 +4,7 @@ use std::io;
 
 use gwas_utils::{GuError, Result, get_delimeter_from_cli_argument, open_reader, open_writer};
 
-use crate::csv::err;
+use crate::csv::lib::{get_column_idx_from_name, get_csv_reader};
 
 pub(crate) const ABOUT: &str =
     "Split a CSV file into multiple files based on unique values in a specified categorical column";
@@ -56,16 +56,9 @@ fn process_file<R>(rdr: R, column_to_split_on: String, sep: char, suffix: String
 where
     R: io::Read,
 {
-    let mut csv_rdr = csv::ReaderBuilder::new()
-        .has_headers(true)
-        .delimiter(sep as u8)
-        .from_reader(rdr);
-
+    let mut csv_rdr = get_csv_reader(rdr, sep);
     let header = csv_rdr.headers()?.clone();
-    let column_index = header
-        .iter()
-        .position(|h| h == column_to_split_on)
-        .ok_or(err::column_not_found_error(&column_to_split_on))?;
+    let column_index = get_column_idx_from_name(&header, &column_to_split_on)?;
 
     let mut file_handles: HashMap<String, csv::Writer<gwas_utils::Writer>> = HashMap::new();
     for result in csv_rdr.records() {

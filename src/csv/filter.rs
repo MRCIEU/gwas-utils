@@ -1,8 +1,11 @@
 use clap::Parser;
 use std::io;
 
-use crate::csv::err;
 use gwas_utils::{GuError, Result, get_delimeter_from_cli_argument, open_reader, open_writer};
+
+use crate::csv::lib::{
+    get_column_idx_from_name, get_column_value_from_idx, get_csv_reader, get_csv_writer,
+};
 
 pub(crate) const ABOUT: &str = "Filter rows from a CSV file based on column-specific expressions";
 pub(crate) const USAGE: &str = r#"
@@ -197,32 +200,19 @@ where
     R: io::Read,
     W: io::Write,
 {
-    let mut csv_rdr = csv::ReaderBuilder::new()
-        .has_headers(true)
-        .delimiter(sep as u8)
-        .from_reader(rdr);
-
+    let mut csv_rdr = get_csv_reader(rdr, sep);
     let header = csv_rdr.headers()?.clone();
-
-    let mut csv_wtr = csv::WriterBuilder::new()
-        .delimiter(sep as u8)
-        .from_writer(wtr);
+    let mut csv_wtr = get_csv_writer(wtr, sep);
 
     // Set column indices for filters based on header
     match &mut filters {
         RowFilter::Expressions(exprs) => {
             for expr in exprs.iter_mut() {
-                expr.column_idx = header
-                    .iter()
-                    .position(|h| h == expr.column_name)
-                    .ok_or(err::column_not_found_error(&expr.column_name))?;
+                expr.column_idx = get_column_idx_from_name(&header, &expr.column_name)?;
             }
         }
         RowFilter::Regex(regex) => {
-            regex.column_idx = header
-                .iter()
-                .position(|h| h == regex.column_name)
-                .ok_or(err::column_not_found_error(&regex.column_name))?;
+            regex.column_idx = get_column_idx_from_name(&header, &regex.column_name)?;
         }
     }
 
@@ -234,16 +224,12 @@ where
             RowFilter::Expressions(exprs) => exprs
                 .iter()
                 .map(|expr| {
-                    let value = record
-                        .get(expr.column_idx)
-                        .ok_or(err::column_idx_out_of_bounds())?;
+                    let value = get_column_value_from_idx(&record, expr.column_idx)?;
                     expr.operator.compare(value, &expr.value)
                 })
                 .collect::<Result<Vec<bool>>>()?,
             RowFilter::Regex(cr) => {
-                let value = record
-                    .get(cr.column_idx)
-                    .ok_or(err::column_idx_out_of_bounds())?;
+                let value = get_column_value_from_idx(&record, cr.column_idx)?;
                 vec![cr.regex.is_match(value)]
             }
         };

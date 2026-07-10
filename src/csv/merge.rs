@@ -3,7 +3,9 @@ use std::io;
 
 use gwas_utils::{Result, get_delimeter_from_cli_argument, open_reader, open_writer};
 
-use crate::csv::err;
+use crate::csv::lib::{
+    get_column_idx_from_name, get_column_value_from_idx, get_csv_reader, get_csv_writer,
+};
 
 pub(crate) const ABOUT: &str = "Merge two CSV files based on a shared column";
 pub(crate) const USAGE: &str =
@@ -102,37 +104,23 @@ where
 {
     let (header1, loaded) = load_csv(rdr1, sep1, merge_column1.clone())?;
 
-    let mut csv_rdr = csv::ReaderBuilder::new()
-        .has_headers(true)
-        .delimiter(sep2 as u8)
-        .from_reader(rdr2);
-
+    let mut csv_rdr = get_csv_reader(rdr2, sep2);
     let header2 = csv_rdr.headers()?.clone();
 
     if merge_column2.is_empty() {
         merge_column2 = merge_column1.clone();
     }
 
-    let key_column_idx = header2
-        .iter()
-        .position(|h| h == merge_column2)
-        .ok_or(err::column_not_found_error(&merge_column2))?;
-
+    let key_column_idx = get_column_idx_from_name(&header2, &merge_column2)?;
     let combined_header = combine_records(header1, header2, key_column_idx)?;
 
-    let mut csv_wtr = csv::WriterBuilder::new()
-        .delimiter(sep1 as u8)
-        .from_writer(wtr);
-
+    let mut csv_wtr = get_csv_writer(wtr, sep1);
     csv_wtr.write_record(&combined_header)?;
 
     for result in csv_rdr.records() {
         let record = result?;
-        let key_value = record
-            .get(key_column_idx)
-            .ok_or(err::column_idx_out_of_bounds())?
-            .to_string();
-        if let Some(matching_record) = loaded.get(&key_value) {
+        let key_value = get_column_value_from_idx(&record, key_column_idx)?;
+        if let Some(matching_record) = loaded.get(key_value) {
             let combined_record = combine_records(matching_record.clone(), record, key_column_idx)?;
             csv_wtr.write_record(&combined_record)?;
         }
@@ -152,27 +140,16 @@ fn load_csv<R>(
 where
     R: io::Read,
 {
-    let mut csv_rdr = csv::ReaderBuilder::new()
-        .has_headers(true)
-        .delimiter(sep as u8)
-        .from_reader(rdr);
-
+    let mut csv_rdr = get_csv_reader(rdr, sep);
     let header = csv_rdr.headers()?.clone();
 
     // Set column indices for filters based on header
-    let key_column_idx = header
-        .iter()
-        .position(|h| h == key)
-        .ok_or(err::column_not_found_error(&key))?;
-
+    let key_column_idx = get_column_idx_from_name(&header, &key)?;
     let mut map = std::collections::HashMap::new();
 
     for result in csv_rdr.records() {
         let record = result?;
-        let key_value = record
-            .get(key_column_idx)
-            .ok_or(err::column_idx_out_of_bounds())?
-            .to_string();
+        let key_value = get_column_value_from_idx(&record, key_column_idx)?.to_string();
         map.insert(key_value, record.clone());
     }
 
