@@ -27,7 +27,7 @@ pub(crate) struct Args {
 
     /// Column name to merge on for second file, if different
     #[arg(long)]
-    c2: String,
+    c2: Option<String>,
 
     /// Delimiter for CSV file reading and writing
     #[arg(long, default_value = "auto")]
@@ -63,7 +63,7 @@ fn handle_commandline_args(
     gwas_utils::Reader,
     gwas_utils::Writer,
     String,
-    String,
+    Option<String>,
     char,
     char,
 )> {
@@ -94,7 +94,7 @@ fn process_files<R, W>(
     rdr2: R,
     wtr: W,
     merge_column1: String,
-    mut merge_column2: String,
+    merge_column2: Option<String>,
     sep1: char,
     sep2: char,
 ) -> Result<()>
@@ -107,11 +107,12 @@ where
     let mut csv_rdr = get_csv_reader(rdr2, sep2);
     let header2 = csv_rdr.headers()?.clone();
 
-    if merge_column2.is_empty() {
-        merge_column2 = merge_column1.clone();
+    let mut m2 = merge_column1.clone();
+    if let Some(m2_col) = merge_column2 {
+        m2 = m2_col;
     }
 
-    let key_column_idx = get_column_idx_from_name(&header2, &merge_column2)?;
+    let key_column_idx = get_column_idx_from_name(&header2, &m2)?;
     let combined_header = combine_records(header1, header2, key_column_idx)?;
 
     let mut csv_wtr = get_csv_writer(wtr, sep1);
@@ -199,7 +200,7 @@ E,105
             std::io::Cursor::new(input2.as_bytes()),
             &mut wtr,
             "ID".to_string(),
-            "ID".to_string(),
+            None,
             ',',
             ',',
         )
@@ -243,7 +244,7 @@ E,105
             std::io::Cursor::new(input2.as_bytes()),
             &mut wtr,
             "ID".to_string(),
-            "EID".to_string(),
+            Some("EID".to_string()),
             ',',
             ',',
         )

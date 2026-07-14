@@ -104,7 +104,7 @@ fn handle_commandline_args(
         }
     } else {
         return Err(GuError::Message(
-            "Either --filter or --regex (and --column) must be provided".into(),
+            "Either --expression or --regex (and --column) must be provided".into(),
         ));
     };
     Ok((file_rdr, file_wtr, sep, filters, args.any, args.invert))
