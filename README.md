@@ -44,16 +44,6 @@ gu
 
 There is a Dockerfile in this repository which you can use to make a distroless image containing `gu` (and nothing else)
 
-### Cross-compilation
-
-You can cross-compile the software for different target platforms.
-
-For example, if you want to build a static binary that will run on 64-bit linux with no run-time dependencies, and you're on OSX, you can [install the appropriate toolchain](https://github.com/FiloSottile/homebrew-musl-cross) (and configure `~/.cargo/config.toml`), then run:
-
-```
-cargo build --release --target x86_64-unknown-linux-musl
-```
-
 
 ## Usage
 
