@@ -63,14 +63,14 @@ enum RowFilter {
 
 struct ColumnExpression {
     column_name: String,
-    column_idx: usize,
+    column_idx: Option<usize>,
     operator: Operator,
     value: String,
 }
 
 struct ColumnRegex {
     column_name: String,
-    column_idx: usize,
+    column_idx: Option<usize>,
     regex: regex::Regex,
 }
 
@@ -97,7 +97,7 @@ fn handle_commandline_args(
         match args.column {
             Some(ref col_name) => RowFilter::Regex(ColumnRegex {
                 column_name: col_name.clone(),
-                column_idx: 0, // This MUST be set later
+                column_idx: None, // This MUST be set later
                 regex,
             }),
             _ => unreachable!(), // This case is already handled by clap's requires attribute
@@ -176,7 +176,7 @@ fn parse_expression(expr: &str) -> Result<ColumnExpression> {
             let operator = Operator::from_str(op)?;
             return Ok(ColumnExpression {
                 column_name: column_name.to_string(),
-                column_idx: 0, // MUST be set later based on header
+                column_idx: None, // MUST be set later based on header
                 operator,
                 value: value.to_string(),
             });
@@ -208,11 +208,11 @@ where
     match &mut filters {
         RowFilter::Expressions(exprs) => {
             for expr in exprs.iter_mut() {
-                expr.column_idx = get_column_idx_from_name(&header, &expr.column_name)?;
+                expr.column_idx = Some(get_column_idx_from_name(&header, &expr.column_name)?)
             }
         }
         RowFilter::Regex(regex) => {
-            regex.column_idx = get_column_idx_from_name(&header, &regex.column_name)?;
+            regex.column_idx = Some(get_column_idx_from_name(&header, &regex.column_name)?);
         }
     }
 
@@ -224,12 +224,20 @@ where
             RowFilter::Expressions(exprs) => exprs
                 .iter()
                 .map(|expr| {
-                    let value = get_column_value_from_idx(&record, expr.column_idx)?;
+                    let value = get_column_value_from_idx(
+                        &record,
+                        expr.column_idx
+                            .ok_or(GuError::Message("Column index not set".into()))?,
+                    )?;
                     expr.operator.compare(value, &expr.value)
                 })
                 .collect::<Result<Vec<bool>>>()?,
             RowFilter::Regex(cr) => {
-                let value = get_column_value_from_idx(&record, cr.column_idx)?;
+                let value = get_column_value_from_idx(
+                    &record,
+                    cr.column_idx
+                        .ok_or(GuError::Message("Column index not set".into()))?,
+                )?;
                 vec![cr.regex.is_match(value)]
             }
         };
@@ -378,7 +386,7 @@ mod tests {
         let mut wtr = Cursor::new(Vec::new());
         let regex = ColumnRegex {
             column_name: "ALLELE1".to_string(),
-            column_idx: 0, // This MUST be set later
+            column_idx: None, // This MUST be set later
             regex: Regex::new("^[ACGT]$").unwrap(),
         };
         let filters = RowFilter::Regex(regex);
