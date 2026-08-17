@@ -2,7 +2,7 @@
 
 `gu` consists of a set of subcommands which were written to do specific, GWAS-related tasks in cloud environments without the overhead of maintaining a python / R installation + libraries. 
 
-A distroless docker image with `gu` compiled on Alpine Linux using the Dockerfile in this repo gzips to ~1.3MB in size on disk.
+A distroless docker image with `gu` compiled on Alpine Linux using the Dockerfile in this repo gzips to ~1.5MB in size on disk.
 
 `gu` is a work in progress - subcommands + API are both subject to change at the moment.
 
