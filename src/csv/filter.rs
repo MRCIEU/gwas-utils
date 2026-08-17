@@ -74,6 +74,56 @@ struct ColumnRegex {
     regex: regex::Regex,
 }
 
+enum Operator {
+    Equal,
+    NotEqual,
+    GreaterThan,
+    LessThan,
+    GreaterThanOrEqual,
+    LessThanOrEqual,
+}
+
+impl std::str::FromStr for Operator {
+    type Err = GuError;
+    fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
+        match s {
+            "==" => Ok(Operator::Equal),
+            "!=" => Ok(Operator::NotEqual),
+            ">" => Ok(Operator::GreaterThan),
+            "<" => Ok(Operator::LessThan),
+            ">=" => Ok(Operator::GreaterThanOrEqual),
+            "<=" => Ok(Operator::LessThanOrEqual),
+            _ => Err(GuError::Message(format!("Unsupported operator: {}", s))),
+        }
+    }
+}
+
+impl Operator {
+    fn compare(&self, left: &str, right: &str) -> Result<bool> {
+        let left_num = left.parse::<f64>();
+        let right_num = right.parse::<f64>();
+
+        if let (Ok(left_val), Ok(right_val)) = (left_num, right_num) {
+            match self {
+                Operator::Equal => Ok(left_val == right_val),
+                Operator::NotEqual => Ok(left_val != right_val),
+                Operator::GreaterThan => Ok(left_val > right_val),
+                Operator::LessThan => Ok(left_val < right_val),
+                Operator::GreaterThanOrEqual => Ok(left_val >= right_val),
+                Operator::LessThanOrEqual => Ok(left_val <= right_val),
+            }
+        } else {
+            match self {
+                Operator::Equal => Ok(left == right),
+                Operator::NotEqual => Ok(left != right),
+                _ => Err(GuError::Message(
+                    "Invalid operator for non-numeric values".into(),
+                )),
+            }
+        }
+    }
+}
+
 fn handle_commandline_args(
     args: Args,
 ) -> Result<(
@@ -110,56 +160,6 @@ fn handle_commandline_args(
     Ok((file_rdr, file_wtr, sep, filters, args.any, args.invert))
 }
 
-enum Operator {
-    Equal,
-    NotEqual,
-    GreaterThan,
-    LessThan,
-    GreaterThanOrEqual,
-    LessThanOrEqual,
-}
-
-impl Operator {
-    fn from_str(op_str: &str) -> Result<Self> {
-        match op_str {
-            "==" => Ok(Operator::Equal),
-            "!=" => Ok(Operator::NotEqual),
-            ">" => Ok(Operator::GreaterThan),
-            "<" => Ok(Operator::LessThan),
-            ">=" => Ok(Operator::GreaterThanOrEqual),
-            "<=" => Ok(Operator::LessThanOrEqual),
-            _ => Err(GuError::Message(format!(
-                "Unsupported operator: {}",
-                op_str
-            ))),
-        }
-    }
-
-    fn compare(&self, left: &str, right: &str) -> Result<bool> {
-        let left_num = left.parse::<f64>();
-        let right_num = right.parse::<f64>();
-
-        if let (Ok(left_val), Ok(right_val)) = (left_num, right_num) {
-            match self {
-                Operator::Equal => Ok(left_val == right_val),
-                Operator::NotEqual => Ok(left_val != right_val),
-                Operator::GreaterThan => Ok(left_val > right_val),
-                Operator::LessThan => Ok(left_val < right_val),
-                Operator::GreaterThanOrEqual => Ok(left_val >= right_val),
-                Operator::LessThanOrEqual => Ok(left_val <= right_val),
-            }
-        } else {
-            match self {
-                Operator::Equal => Ok(left == right),
-                Operator::NotEqual => Ok(left != right),
-                _ => Err(GuError::Message(
-                    "Invalid operator for non-numeric values".into(),
-                )),
-            }
-        }
-    }
-}
-
 fn parse_expressions(expressions: Vec<String>) -> Result<Vec<ColumnExpression>> {
     expressions
         .into_iter()
@@ -173,7 +173,7 @@ fn parse_expression(expr: &str) -> Result<ColumnExpression> {
         if let Some(idx) = expr.find(op) {
             let column_name = expr[..idx].trim();
             let value = expr[idx + op.len()..].trim();
-            let operator = Operator::from_str(op)?;
+            let operator = op.parse()?;
             return Ok(ColumnExpression {
                 column_name: column_name.to_string(),
                 column_idx: None, // MUST be set later based on header
