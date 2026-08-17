@@ -94,7 +94,7 @@ Commands:
   concat    Concatenate multiple CSV files into a single file
   delim     Change the delimeter of a CSV file
   filter    Filter rows from a CSV file based on column-specific expressions
-  merge     Merge two CSV files based on a shared column
+  merge     Merge two CSV files based on a shared column. Duplicate keys are not handled sensibly
   regenify  Write a tab separated file with missing data replaced by "NA"s
   reheader  Reheader a CSV file
   select    Select specific columns from a CSV file
@@ -199,18 +199,20 @@ Options:
 
 ```
 ❯ gu csv merge -h
-Merge two CSV files based on a shared column
+Merge two CSV files based on a shared column. Duplicate keys are not handled sensibly
 
 Usage: gu csv merge infile1.csv[.gz] infile2.csv[.gz] -c KEY_COLUMN [-o outfile.csv[.gz]]
 
 Arguments:
-  <INPUT> <INPUT>...  CSV files to merge (can be gzipped if filenames end with .gz)
+  <INPUT> <INPUT>...  CSV files to merge (can be gzipped if filenames end with .gz). Right-hand file is streamed from disk for --join=inner and --join=right
 
 Options:
   -c, --column <COLUMN>  Column name to merge on
+  -j, --join <JOIN>      Join type [default: inner] [possible values: inner, outer, left, right]
       --c2 <C2>          Column name to merge on for second file, if different
       --d1 <D1>          Delimiter for CSV file reading and writing [default: auto]
       --d2 <D2>          Delimiter for the second CSV file [default: auto]
+  -f, --fill <FILL>      Fill string for missing values in unmatched rows (left, right, outer joins) [default: ""]
   -o, --output <OUTPUT>  CSV file to write (will be gzipped if filename ends with .gz) [default: stdout]
   -h, --help             Print help
   -V, --version          Print version
