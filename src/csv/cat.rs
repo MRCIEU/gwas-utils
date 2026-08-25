@@ -8,7 +8,7 @@ use crate::csv::lib;
 
 pub(crate) const ABOUT: &str = "Concatenate multiple CSV files into a single file";
 pub(crate) const USAGE: &str =
-    "gu csv concat infile1.csv[.gz] infile2.csv[.gz] ... [-o outfile.csv[.gz]]";
+    "gu csv cat infile1.csv[.gz] infile2.csv[.gz] ... [-o outfile.csv[.gz]]";
 
 pub(crate) fn get_usage() -> String {
     USAGE.to_string()
