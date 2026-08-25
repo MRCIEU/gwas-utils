@@ -91,7 +91,7 @@ Usage: gu csv <COMMAND>
 Commands:
   addp      Add a P column to a CSV file based on a (minus) LOG10P column
   addz      Add a Z-score column to a CSV file based on a beta column and a standard error column
-  concat    Concatenate multiple CSV files into a single file
+  cat       Concatenate multiple CSV files into a single file
   delim     Change the delimeter of a CSV file
   filter    Filter rows from a CSV file based on column-specific expressions
   merge     Merge two CSV files based on a shared column. Duplicate keys are not handled sensibly
@@ -142,10 +142,10 @@ Options:
 ```
 
 ```
-❯ gu csv concat -h
+❯ gu csv cat -h
 Concatenate multiple CSV files into a single file
 
-Usage: gu csv concat infile1.csv[.gz] infile2.csv[.gz] ... [-o outfile.csv[.gz]]
+Usage: gu csv cat infile1.csv[.gz] infile2.csv[.gz] ... [-o outfile.csv[.gz]]
 
 Arguments:
   <INPUT>...  CSV files to concatenate (can be gzipped if filenames end with .gz)

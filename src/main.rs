@@ -80,7 +80,7 @@ fn run() -> Result<(), SubcommandError> {
         .arg_required_else_help(true);
 
     add_subcommands!(
-        csv_cmg, addp, addz, concat, delim, filter, merge, regenify, reheader, select, split
+        csv_cmg, addp, addz, cat, delim, filter, merge, regenify, reheader, select, split
     );
     add_subcommands!(dn_cmg, make_dxfuse_manifest);
 
@@ -105,7 +105,7 @@ fn run() -> Result<(), SubcommandError> {
                 csv_matches,
                 addp,
                 addz,
-                concat,
+                cat,
                 delim,
                 filter,
                 merge,

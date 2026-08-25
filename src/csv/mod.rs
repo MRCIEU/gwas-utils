@@ -1,6 +1,6 @@
 pub(crate) mod addp;
 pub(crate) mod addz;
-pub(crate) mod concat;
+pub(crate) mod cat;
 pub(crate) mod delim;
 pub(crate) mod filter;
 pub(crate) mod lib;
