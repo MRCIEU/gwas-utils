@@ -1,6 +1,5 @@
-use flate2::Compression;
 use flate2::read::GzDecoder;
-use flate2::write::GzEncoder;
+use gzp::{ZBuilder, ZWriter, deflate::Gzip};
 use std::fs::File;
 use std::io::{self, Cursor, Read, Seek, SeekFrom, Write};
 use thiserror::Error;
@@ -163,7 +162,7 @@ pub fn open_reader(filename: &str) -> Result<Reader> {
 
 pub enum Writer {
     File(std::fs::File),
-    GzFile(GzEncoder<std::fs::File>),
+    GzpFile(Box<dyn ZWriter<File>>),
     Stdout(std::io::Stdout),
 }
 
@@ -171,7 +170,7 @@ impl Write for Writer {
     fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
         match self {
             Writer::File(f) => f.write(buf),
-            Writer::GzFile(gz) => gz.write(buf),
+            Writer::GzpFile(gzp) => gzp.write(buf),
             Writer::Stdout(stdout) => stdout.write(buf),
         }
     }
@@ -179,7 +178,7 @@ impl Write for Writer {
     fn flush(&mut self) -> std::io::Result<()> {
         match self {
             Writer::File(f) => f.flush(),
-            Writer::GzFile(gz) => gz.flush(),
+            Writer::GzpFile(gzp) => gzp.flush(),
             Writer::Stdout(stdout) => stdout.flush(),
         }
     }
@@ -192,8 +191,8 @@ pub fn open_writer(filename: &str) -> Result<Writer> {
     }
     let f = File::create(filename)?;
     if filename.ends_with(".gz") {
-        let gz = GzEncoder::new(f, Compression::default());
-        Ok(Writer::GzFile(gz))
+        let pgz = ZBuilder::<Gzip, _>::new().num_threads(8).from_writer(f);
+        Ok(Writer::GzpFile(pgz))
     } else {
         Ok(Writer::File(f))
     }
