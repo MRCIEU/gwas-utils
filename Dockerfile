@@ -1,9 +1,9 @@
 FROM alpine:3.23 AS build
 
 RUN apk add --update --no-cache \
-        curl \
-        gcc \
-        musl-dev
+        build-base \
+        cmake \
+        curl
 
 RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs/ | sh -s -- -y
 
