@@ -2,9 +2,9 @@ use clap::Parser;
 use std::collections::HashMap;
 use std::io;
 
-use gwas_utils::{GuError, Result, get_delimeter_from_cli_argument, open_reader, open_writer};
+use gwas_utils::{GuError, Result, open_reader, open_writer};
 
-use crate::csv::lib::{get_column_idx_from_name, get_csv_reader};
+use crate::csv::lib::{get_column_idx_from_name, get_csv_reader, get_delimeter_from_cli_argument};
 
 pub(crate) const ABOUT: &str =
     "Split a CSV file into multiple files based on unique values in a specified categorical column";

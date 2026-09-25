@@ -1,9 +1,11 @@
 use clap::Parser;
 use std::io;
 
-use gwas_utils::{Result, get_delimeter_from_cli_argument, open_reader, open_writer};
+use gwas_utils::{Result, open_reader, open_writer};
 
-use crate::csv::lib::{column_not_found_error, get_csv_reader, get_csv_writer};
+use crate::csv::lib::{
+    column_not_found_error, get_csv_reader, get_csv_writer, get_delimeter_from_cli_argument,
+};
 
 pub(crate) const ABOUT: &str = "Select specific columns from a CSV file";
 pub(crate) const USAGE: &str =

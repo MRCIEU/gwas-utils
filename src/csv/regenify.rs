@@ -1,9 +1,9 @@
 use clap::Parser;
 use std::io;
 
-use gwas_utils::{Result, get_delimeter_from_cli_argument, open_reader, open_writer};
+use gwas_utils::{Result, open_reader, open_writer};
 
-use crate::csv::lib::{get_csv_reader, get_csv_writer};
+use crate::csv::lib::{get_csv_reader, get_csv_writer, get_delimeter_from_cli_argument};
 
 pub(crate) const ABOUT: &str = "Write a tab separated file with missing data replaced by \"NA\"s";
 pub(crate) const USAGE: &str = "gu csv regenify infile.csv[.gz] [-o outfile.tsv[.gz]]";
