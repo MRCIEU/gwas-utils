@@ -259,13 +259,18 @@ Options:
 ❯ gu csv select -h
 Select specific columns from a CSV file
 
-Usage: gu csv select infile.csv[.gz] -c <column1 column2 ...> [-o outfile.csv[.gz]]
+Usage: 
+    gu csv select infile.csv[.gz] -c <column1 column2 ...> [-o outfile.csv[.gz]]
+    gu csv select infile.csv[.gz] -i <index1 index2 ...> [-o outfile.csv[.gz]]
+    gu csv select infile.csv[.gz] -r <REGEX1 REGEX2 ...> [-o outfile.csv[.gz]]
 
 Arguments:
   [INPUT]  CSV file to process (can be gzipped if filename ends with .gz) [default: stdin]
 
 Options:
-  -c, --columns <COLUMNS>...  Column names to select
+  -c, --columns <COLUMNS>...  Column names to select or...
+  -i, --indices <INDICES>...  Column indices (1-based) to select or...
+  -r, --regexes <REGEXES>...  Regexes to select column names against
   -d, --delim <DELIM>         Delimiter for CSV file reading and writing [default: auto]
       --no-reorder            Don't reorder selected columns
   -o, --output <OUTPUT>       CSV file to write (will be gzipped if filename ends with .gz) [default: stdout]

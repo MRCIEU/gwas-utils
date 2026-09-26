@@ -27,10 +27,7 @@ pub(crate) fn get_csv_writer<W: std::io::Write>(wtr: W, sep: char) -> csv::Write
 }
 
 pub(crate) fn column_not_found_error(col_name: &str) -> GuError {
-    GuError::Message(format!(
-        "Couldn't find \"{}\" column name in file header",
-        col_name
-    ))
+    GuError::Message(format!("Couldn't find \"{}\" in file header", col_name))
 }
 
 pub(crate) fn column_idx_out_of_bounds_error() -> GuError {
@@ -45,6 +42,29 @@ pub(crate) fn get_column_idx_from_name(
         .iter()
         .position(|h| h == col_name)
         .ok_or(column_not_found_error(col_name))
+}
+
+pub(crate) fn get_column_indices_from_regexes(
+    header: &csv::StringRecord,
+    regexes: Vec<String>,
+) -> Result<Vec<usize>> {
+    let mut indices = Vec::new();
+    for regex_str in regexes {
+        let regex = regex::Regex::new(&regex_str)
+            .map_err(|e| GuError::Message(format!("Invalid regex \"{}\": {}", regex_str, e)))?;
+        let mut matched_indices = get_column_indices_from_regex(header, regex);
+        indices.append(&mut matched_indices);
+    }
+    Ok(indices)
+}
+
+fn get_column_indices_from_regex(header: &csv::StringRecord, regex: regex::Regex) -> Vec<usize> {
+    header
+        .iter()
+        .map(|h| regex.is_match(h))
+        .enumerate()
+        .filter_map(|(i, b)| if b { Some(i) } else { None })
+        .collect::<Vec<usize>>()
 }
 
 pub(crate) fn get_column_value_from_idx(
