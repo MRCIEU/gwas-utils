@@ -2,9 +2,9 @@ use clap::Parser;
 use csv::StringRecord;
 use std::io;
 
-use gwas_utils::{GuError, Result, get_delimeter_from_cli_argument, open_reader, open_writer};
+use gwas_utils::{GuError, Result, open_reader, open_writer};
 
-use crate::csv::lib;
+use crate::csv::lib::{get_csv_reader, get_csv_writer, get_delimeter_from_cli_argument};
 
 pub(crate) const ABOUT: &str = "Concatenate multiple CSV files into a single file";
 pub(crate) const USAGE: &str =
@@ -70,11 +70,11 @@ where
     R: io::Read,
     W: io::Write,
 {
-    let mut csv_wtr = lib::get_csv_writer(wtr, sep);
+    let mut csv_wtr = get_csv_writer(wtr, sep);
     let mut index_header = StringRecord::new();
 
     for (i, rdr) in rdrs.into_iter().enumerate() {
-        let mut csv_rdr = lib::get_csv_reader(rdr, sep);
+        let mut csv_rdr = get_csv_reader(rdr, sep);
         if i == 0 {
             index_header = csv_rdr.headers()?.clone();
             csv_wtr.write_record(&index_header)?;

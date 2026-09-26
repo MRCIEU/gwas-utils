@@ -1,10 +1,11 @@
 use clap::Parser;
 use std::io;
 
-use gwas_utils::{Result, get_delimeter_from_cli_argument, open_reader, open_writer};
+use gwas_utils::{Result, open_reader, open_writer};
 
 use crate::csv::lib::{
     get_column_idx_from_name, get_column_value_from_idx, get_csv_reader, get_csv_writer,
+    get_delimeter_from_cli_argument,
 };
 
 pub(crate) const ABOUT: &str = "Add a P column to a CSV file based on a (minus) LOG10P column";
