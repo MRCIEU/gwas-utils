@@ -19,10 +19,10 @@ Then you should be able to install gwas-utils by running:
 cargo install --git https://github.com/mrcieu/gwas-utils
 ```
 
-and the binary will be installed somewhere in your `$PATH`:
+and the binary will be installed locally (in `$HOME/.cargo/bin` unless you have specified otherwise. Run `cargo help install` if you need to work out where):
 
 ```
-gu -h
+~/.cargo/bin/gu -h
 ```
 
 or clone the repository and build it:
