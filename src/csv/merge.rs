@@ -321,7 +321,11 @@ fn combine_records(
 mod tests {
     use super::*;
 
-    // --- combine_records ---
+    #[test]
+    fn verify_cli() {
+        use clap::CommandFactory;
+        Args::command().debug_assert();
+    }
 
     #[test]
     fn test_combine_records_drops_key_column() {

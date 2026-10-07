@@ -98,6 +98,12 @@ mod tests {
     use super::*;
 
     #[test]
+    fn verify_cli() {
+        use clap::CommandFactory;
+        Args::command().debug_assert();
+    }
+
+    #[test]
     fn test_precision() {
         let log10_p = "1000.0";
         let p = get_p_from_log10_p(log10_p).unwrap();

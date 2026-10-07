@@ -102,6 +102,12 @@ mod tests {
     use super::*;
 
     #[test]
+    fn verify_cli() {
+        use clap::CommandFactory;
+        Args::command().debug_assert();
+    }
+
+    #[test]
     fn test_get_z_value() {
         let beta = "0.1";
         let se = "0.2";

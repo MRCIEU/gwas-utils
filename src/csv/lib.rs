@@ -78,6 +78,7 @@ pub(crate) fn get_column_value_from_idx(
 mod tests {
 
     use super::*;
+
     #[test]
     fn test_get_delimiter() {
         assert_eq!(get_delimeter_from_cli_argument("\t").unwrap(), '\t');
