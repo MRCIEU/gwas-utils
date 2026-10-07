@@ -90,18 +90,18 @@ enum ColumnSelection {
 
 fn get_column_indices_to_select(
     c: ColumnSelection,
-    h: &csv::StringRecord,
+    header: &csv::StringRecord,
     no_reorder: bool,
 ) -> Result<Vec<usize>> {
     let mut indices = match c {
         ColumnSelection::Names(names) => names
             .iter()
-            .map(|name| get_column_idx_from_name(h, name))
+            .map(|name| get_column_idx_from_name(header, name))
             .collect::<Result<Vec<usize>>>(),
         ColumnSelection::Indices(indices) => indices
             .iter()
             .map(|&idx| {
-                if idx > h.len() {
+                if idx > header.len() {
                     Err(column_idx_out_of_bounds_error())
                 } else {
                     Ok(idx - 1)
@@ -109,7 +109,7 @@ fn get_column_indices_to_select(
             })
             .collect::<Result<Vec<usize>>>(),
         ColumnSelection::Regexes(regexes) => {
-            let indices = get_column_indices_from_regexes(h, regexes)?;
+            let indices = get_column_indices_from_regexes(header, regexes)?;
             if indices.is_empty() {
                 return Err(gwas_utils::GuError::Message(
                     "No columns matched the provided regexes".to_string(),
