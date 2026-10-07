@@ -85,14 +85,13 @@ where
 }
 
 fn get_z_from_beta_se(beta_val: &str, se_val: &str) -> Result<String> {
-    let result = beta_val
-        .parse::<f64>()
-        .ok()
-        .zip(se_val.parse::<f64>().ok())
-        .filter(|(_, se)| *se != 0.0)
-        .map(|(beta, se)| format!("{:.6}", beta / se))
-        .unwrap_or_else(|| "NA".into());
-    Ok(result)
+    let beta = beta_val.parse::<f64>()?;
+    let se = se_val.parse::<f64>()?;
+    if se == 0.0 {
+        return Ok("NA".into());
+    }
+    let z = beta / se;
+    Ok(format!("{:.6}", z))
 }
 
 #[cfg(test)]
