@@ -9,3 +9,4 @@ pub(crate) mod regenify;
 pub(crate) mod reheader;
 pub(crate) mod select;
 pub(crate) mod split;
+pub(crate) mod stats;
