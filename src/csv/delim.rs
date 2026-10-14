@@ -77,6 +77,12 @@ mod tests {
     use super::*;
 
     #[test]
+    fn verify_cli() {
+        use clap::CommandFactory;
+        Args::command().debug_assert();
+    }
+
+    #[test]
     fn test_redelim() {
         let input = r#"CHROM GENPOS ID ALLELE0 ALLELE1 A1FREQ INFO N TEST BETA SE CHISQ LOG10P EXTRA
 1 1 1 2 1 0.214575 1 494 ADD 0.0775674 0.230001 0.113736 0.133163 NA

@@ -4,6 +4,7 @@ use clap::{Command, CommandFactory, FromArgMatches, crate_version};
 use gwas_utils::{GuError, handle_broken_pipe};
 
 mod csv;
+use crate::csv::stats::lambda;
 use crate::csv::*;
 
 mod dn;
@@ -74,6 +75,11 @@ fn run() -> Result<(), SubcommandError> {
         .subcommand_required(true)
         .arg_required_else_help(true);
 
+    let mut stats_cmg = Command::new("stats")
+        .about(stats::ABOUT)
+        .subcommand_required(true)
+        .arg_required_else_help(true);
+
     let mut dn_cmg = Command::new("dn")
         .about("Tools for working with DNAnexus")
         .subcommand_required(true)
@@ -82,8 +88,10 @@ fn run() -> Result<(), SubcommandError> {
     add_subcommands!(
         csv_cmg, addp, addz, cat, delim, filter, merge, regenify, reheader, select, split
     );
+    add_subcommands!(stats_cmg, lambda);
     add_subcommands!(dn_cmg, make_dxfuse_manifest);
 
+    csv_cmg = csv_cmg.subcommand(stats_cmg);
     cmd = cmd.subcommand(csv_cmg).subcommand(dn_cmg);
 
     let matches = cmd.get_matches();
@@ -95,13 +103,15 @@ fn run() -> Result<(), SubcommandError> {
         println!("flate2:\n{}\n", LICENCE_FLATE2);
         println!("regex:\n{}\n", LICENCE_REGEX);
         println!("serde_json:\n{}\n", LICENCE_SERDE);
+        println!("statrs:\n{}\n", LICENCE_STATRS);
         println!("thiserror:\n{}\n", LICENCE_THISERROR);
         return Ok(());
     }
 
     match matches.subcommand() {
-        Some(("csv", csv_matches)) => {
-            match_subcommand!(
+        Some(("csv", csv_matches)) => match csv_matches.subcommand() {
+            Some(("stats", stats_matches)) => match_subcommand!(stats_matches, lambda),
+            _ => match_subcommand!(
                 csv_matches,
                 addp,
                 addz,
@@ -113,8 +123,8 @@ fn run() -> Result<(), SubcommandError> {
                 reheader,
                 select,
                 split
-            )
-        }
+            ),
+        },
         Some(("dn", dn_matches)) => match_subcommand!(dn_matches, make_dxfuse_manifest),
         _ => unreachable!(),
     }

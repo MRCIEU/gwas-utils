@@ -88,6 +88,12 @@ mod tests {
     use std::io::Cursor;
 
     #[test]
+    fn verify_cli() {
+        use clap::CommandFactory;
+        Args::command().debug_assert();
+    }
+
+    #[test]
     fn test() {
         let input1 = r#"ID,VALUE1
 A,-1

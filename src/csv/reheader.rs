@@ -93,8 +93,8 @@ fn handle_commandline_args(
 fn process_file<R, W>(
     rdr: R,
     wtr: W,
-    newheader: Option<csv::StringRecord>,
-    newcolumns: Option<HashMap<String, String>>,
+    new_header: Option<csv::StringRecord>,
+    new_columns: Option<HashMap<String, String>>,
     sep: char,
 ) -> Result<()>
 where
@@ -106,18 +106,18 @@ where
     let mut csv_wtr = get_csv_writer(wtr, sep);
     let header = csv_rdr.headers()?.clone();
 
-    if let Some(newheader) = newheader {
-        if newheader.len() != header.len() {
+    if let Some(new_header) = new_header {
+        if new_header.len() != header.len() {
             return Err(GuError::Message(format!(
                 "New header has {} columns, but input file has {} columns",
-                newheader.len(),
+                new_header.len(),
                 header.len()
             )));
         }
-        csv_wtr.write_record(&newheader)?;
-    } else if let Some(newcolumns) = newcolumns {
+        csv_wtr.write_record(&new_header)?;
+    } else if let Some(new_columns) = new_columns {
         let mut new_header: Vec<String> = header.iter().map(|h| h.to_string()).collect();
-        for (old_col, new_col) in newcolumns {
+        for (old_col, new_col) in new_columns {
             if let Some(idx) = header.iter().position(|h| h == old_col) {
                 new_header[idx] = new_col;
             } else {
@@ -145,6 +145,12 @@ mod tests {
     use std::io::Cursor;
 
     use super::*;
+
+    #[test]
+    fn verify_cli() {
+        use clap::CommandFactory;
+        Args::command().debug_assert();
+    }
 
     static INPUT: &str = r#"CHROM GENPOS ID ALLELE0 ALLELE1 A1FREQ INFO N TEST BETA SE CHISQ LOG10P EXTRA
 1 1 1 2 1 0.214575 1 494 ADD 0.0775674 0.230001 0.113736 0.133163 NA

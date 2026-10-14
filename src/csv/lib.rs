@@ -74,10 +74,17 @@ pub(crate) fn get_column_value_from_idx(
     record.get(col_idx).ok_or(column_idx_out_of_bounds_error())
 }
 
+pub(crate) fn get_p_from_log10_p(log10_p: f64) -> f64 {
+    let temp = log10_p.abs() * -1.0; // Convert to negative number regardless of input sign (these are p-values so they must be <= 1)
+    let p = f64::powf(10.0, temp);
+    if p == 0.0 { f64::MIN_POSITIVE } else { p }
+}
+
 #[cfg(test)]
 mod tests {
 
     use super::*;
+
     #[test]
     fn test_get_delimiter() {
         assert_eq!(get_delimeter_from_cli_argument("\t").unwrap(), '\t');
@@ -86,5 +93,13 @@ mod tests {
         assert_eq!(get_delimeter_from_cli_argument(" ").unwrap(), ' ');
         assert_eq!(get_delimeter_from_cli_argument(",").unwrap(), ',');
         assert!(get_delimeter_from_cli_argument("::").is_err());
+    }
+
+    #[test]
+    fn test_get_p_from_log10_p() {
+        assert_eq!(get_p_from_log10_p(1.0), 0.1);
+        assert_eq!(get_p_from_log10_p(2.0), 0.01);
+        assert_eq!(get_p_from_log10_p(-2.0), 0.01);
+        assert_eq!(get_p_from_log10_p(1000.0), f64::MIN_POSITIVE);
     }
 }

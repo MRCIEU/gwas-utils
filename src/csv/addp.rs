@@ -5,7 +5,7 @@ use gwas_utils::{Result, open_reader, open_writer};
 
 use crate::csv::lib::{
     get_column_idx_from_name, get_column_value_from_idx, get_csv_reader, get_csv_writer,
-    get_delimeter_from_cli_argument,
+    get_delimeter_from_cli_argument, get_p_from_log10_p,
 };
 
 pub(crate) const ABOUT: &str = "Add a P column to a CSV file based on a (minus) LOG10P column";
@@ -67,7 +67,7 @@ where
     for result in csv_rdr.records() {
         let mut record = result?;
         let log10_p_val = get_column_value_from_idx(&record, log10_p_col_idx)?;
-        let ps = get_p_from_log10_p(log10_p_val)?;
+        let ps = get_p_string_from_log10_p(log10_p_val)?;
         record.push_field(&ps);
         csv_wtr.write_record(&record)?;
     }
@@ -77,16 +77,9 @@ where
     Ok(())
 }
 
-fn get_p_from_log10_p(log10_p_val: &str) -> Result<String> {
+fn get_p_string_from_log10_p(log10_p_val: &str) -> Result<String> {
     match log10_p_val.parse::<f64>() {
-        Ok(log10_p) => {
-            let temp = log10_p.abs() * -1.0; // Convert to negative number regardless of input sign (these are p-values so they must be <= 1)
-            let mut p = f64::powf(10.0, temp);
-            if p == 0.0 {
-                p = f64::MIN_POSITIVE;
-            }
-            Ok(format!("{:E}", p))
-        }
+        Ok(log10_p) => Ok(format!("{:E}", get_p_from_log10_p(log10_p))),
         Err(_) => Ok("NA".into()),
     }
 }
@@ -98,24 +91,30 @@ mod tests {
     use super::*;
 
     #[test]
+    fn verify_cli() {
+        use clap::CommandFactory;
+        Args::command().debug_assert();
+    }
+
+    #[test]
     fn test_precision() {
         let log10_p = "1000.0";
-        let p = get_p_from_log10_p(log10_p).unwrap();
+        let p = get_p_string_from_log10_p(log10_p).unwrap();
         assert_eq!(p, format!("{:E}", f64::MIN_POSITIVE));
     }
 
     #[test]
     fn test_get_p_value() {
         let mut log10_p = "1.0";
-        let p = get_p_from_log10_p(log10_p).unwrap();
+        let p = get_p_string_from_log10_p(log10_p).unwrap();
         assert_eq!(p, format!("{:E}", 0.1));
 
         log10_p = "2.0";
-        let p = get_p_from_log10_p(log10_p).unwrap();
+        let p = get_p_string_from_log10_p(log10_p).unwrap();
         assert_eq!(p, format!("{:E}", 0.01));
 
         log10_p = "-2.0";
-        let p = get_p_from_log10_p(log10_p).unwrap();
+        let p = get_p_string_from_log10_p(log10_p).unwrap();
         assert_eq!(p, format!("{:E}", 0.01));
     }
 

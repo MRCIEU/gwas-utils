@@ -99,6 +99,7 @@ Commands:
   reheader  Reheader a CSV file
   select    Select specific columns from a CSV file
   split     Split a CSV file into multiple files based on unique values in a specified categorical column
+  stats     Calculate summary statistics from a CSV file
   help      Print this message or the help of the given subcommand(s)
 
 Options:
@@ -291,6 +292,39 @@ Options:
   -c, --column <COLUMN>  Categorical column name to split on
   -d, --delim <DELIM>    Delimiter for CSV file reading and writing [default: auto]
   -s, --suffix <SUFFIX>  Suffix to add to output filenames (by default output files will be named "COLNAME.VAL.csv") [default: csv]
+  -h, --help             Print help
+  -V, --version          Print version
+```
+
+```
+❯ gu csv stats -h
+Calculate summary statistics from a CSV file
+
+Usage: gu csv stats <COMMAND>
+
+Commands:
+  lambda  Calculate the genomic inflation factor (lambda) from a P or (minus) LOG10P column
+  help    Print this message or the help of the given subcommand(s)
+
+Options:
+  -h, --help     Print help
+  -V, --version  Print version
+```
+
+```
+❯ gu csv stats lambda -h
+Calculate the genomic inflation factor (lambda) from a P or (minus) LOG10P column
+
+Usage: gu csv stats lambda infile.csv[.gz] [--p P_COLUMN | --log10p LOG10P_COLUMN] [-o outfile.txt[.gz]]
+
+Arguments:
+  [INPUT]  CSV file to process (can be gzipped if filename ends with .gz) [default: stdin]
+
+Options:
+  -d, --delim <DELIM>    Delimiter for CSV file reading [default: auto]
+  -p, --p <P>            Name of column containing P values [default: P]
+      --log10p <LOG10P>  Name of column containing [optionally negative] LOG10P values (use instead of --p)
+  -o, --output <OUTPUT>  File to write lambda to (will be gzipped if filename ends with .gz) [default: stdout]
   -h, --help             Print help
   -V, --version          Print version
 ```
