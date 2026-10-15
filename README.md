@@ -77,9 +77,10 @@ Commands:
   help  Print this message or the help of the given subcommand(s)
 
 Options:
-  -l, --licences  Print licence information
+  -v, --version   Print version information
+  -l              Print a summary of licence information
+      --licences  Print full licence information, including all third-party notices
   -h, --help      Print help
-  -V, --version   Print version
 ```
 
 ```
@@ -103,8 +104,7 @@ Commands:
   help      Print this message or the help of the given subcommand(s)
 
 Options:
-  -h, --help     Print help
-  -V, --version  Print version
+  -h, --help  Print help
 ```
 
 ```
@@ -121,7 +121,6 @@ Options:
       --log10p <LOG10P>  Name of column containing [optionally negative] LOG10P values [default: LOG10P]
   -o, --output <OUTPUT>  CSV file to write (will be gzipped if filename ends with .gz) [default: stdout]
   -h, --help             Print help
-  -V, --version          Print version
 ```
 
 ```
@@ -139,7 +138,6 @@ Options:
       --se <SE>          Name of column containing standard error values [default: SE]
   -o, --output <OUTPUT>  CSV file to write (will be gzipped if filename ends with .gz) [default: stdout]
   -h, --help             Print help
-  -V, --version          Print version
 ```
 
 ```
@@ -155,7 +153,6 @@ Options:
   -d, --delim <DELIM>    Delimiter for CSV file reading and writing [default: auto]
   -o, --output <OUTPUT>  CSV file to write (will be gzipped if filename ends with .gz) [default: stdout]
   -h, --help             Print help
-  -V, --version          Print version
 ```
 
 ```
@@ -172,7 +169,6 @@ Options:
   -d, --delim <DELIM>    Delimiter for OUTPUT CSV file
   -o, --output <OUTPUT>  CSV file to write (will be gzipped if filename ends with .gz) [default: stdout]
   -h, --help             Print help
-  -V, --version          Print version
 ```
 
 ```
@@ -195,7 +191,6 @@ Options:
   -d, --delim <DELIM>               Delimiter for CSV file reading and writing [default: auto]
   -o, --output <OUTPUT>             CSV file to write (will be gzipped if filename ends with .gz) [default: stdout]
   -h, --help                        Print help
-  -V, --version                     Print version
 ```
 
 ```
@@ -216,7 +211,6 @@ Options:
   -f, --fill <FILL>      Fill string for missing values in unmatched rows (left, right, outer joins) [default: ""]
   -o, --output <OUTPUT>  CSV file to write (will be gzipped if filename ends with .gz) [default: stdout]
   -h, --help             Print help
-  -V, --version          Print version
 ```
 
 ```
@@ -233,7 +227,6 @@ Options:
       --no-rep-neg-one   Don't replace -1 with NA
   -o, --output <OUTPUT>  CSV file to write (will be gzipped if filename ends with .gz) [default: stdout]
   -h, --help             Print help
-  -V, --version          Print version
 ```
 
 ```
@@ -253,7 +246,6 @@ Options:
   -d, --delim <DELIM>         Delimiter for CSV file reading and writing [default: auto]
   -o, --output <OUTPUT>       CSV file to write (will be gzipped if filename ends with .gz) [default: stdout]
   -h, --help                  Print help
-  -V, --version               Print version
 ```
 
 ```
@@ -276,7 +268,6 @@ Options:
       --no-reorder            Don't reorder selected columns
   -o, --output <OUTPUT>       CSV file to write (will be gzipped if filename ends with .gz) [default: stdout]
   -h, --help                  Print help
-  -V, --version               Print version
 ```
 
 ```
@@ -293,7 +284,6 @@ Options:
   -d, --delim <DELIM>    Delimiter for CSV file reading and writing [default: auto]
   -s, --suffix <SUFFIX>  Suffix to add to output filenames (by default output files will be named "COLNAME.VAL.csv") [default: csv]
   -h, --help             Print help
-  -V, --version          Print version
 ```
 
 ```
@@ -307,8 +297,7 @@ Commands:
   help    Print this message or the help of the given subcommand(s)
 
 Options:
-  -h, --help     Print help
-  -V, --version  Print version
+  -h, --help  Print help
 ```
 
 ```
@@ -326,7 +315,6 @@ Options:
       --log10p <LOG10P>  Name of column containing [optionally negative] LOG10P values (use instead of --p)
   -o, --output <OUTPUT>  File to write lambda to (will be gzipped if filename ends with .gz) [default: stdout]
   -h, --help             Print help
-  -V, --version          Print version
 ```
 
 ```
@@ -340,8 +328,7 @@ Commands:
   help                  Print this message or the help of the given subcommand(s)
 
 Options:
-  -h, --help     Print help
-  -V, --version  Print version
+  -h, --help  Print help
 ```
 
 ```
@@ -355,5 +342,4 @@ Options:
   -p, --projectid <PROJECTID>  The ID of the DNAnexus project containing the files
   -o, --output <OUTPUT>        JSON file to write the manifest to [default: stdout]
   -h, --help                   Print help
-  -V, --version                Print version
 ```
