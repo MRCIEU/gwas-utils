@@ -10,8 +10,15 @@ use crate::csv::*;
 mod dn;
 use crate::dn::*;
 
-mod licences;
-use crate::licences::*;
+/// The NOTICE file: this program's licence, and the notices of its third-party dependencies
+const NOTICE: &str = include_str!("../NOTICE");
+
+/// The opening statement of NOTICE, i.e. everything before the first third-party notice
+fn get_notice_summary() -> &'static str {
+    NOTICE
+        .split_once("\n---")
+        .map_or(NOTICE, |(summary, _)| summary)
+}
 
 macro_rules! add_subcommands {
     ($cmd:expr, $($module:ident),*) => {
@@ -59,14 +66,26 @@ fn main() {
 fn run() -> Result<(), SubcommandError> {
     let mut cmd = Command::new("gu")
         .version(crate_version!())
-        .propagate_version(true)
+        .disable_version_flag(true)
+        .arg(
+            Arg::new("version")
+                .short('v')
+                .long("version")
+                .help("Print version information")
+                .action(clap::ArgAction::Version),
+        )
         .arg_required_else_help(true)
         .arg(
-            Arg::new("licences")
+            Arg::new("licences_summary")
                 .short('l')
+                .help("Print a summary of licence information")
+                .action(clap::ArgAction::SetTrue),
+        )
+        .arg(
+            Arg::new("licences")
                 .long("licences")
                 .alias("licenses")
-                .help("Print licence information")
+                .help("Print full licence information, including all third-party notices")
                 .action(clap::ArgAction::SetTrue),
         );
 
@@ -97,14 +116,15 @@ fn run() -> Result<(), SubcommandError> {
     let matches = cmd.get_matches();
 
     if let Some(true) = matches.get_one::<bool>("licences") {
-        println!("gwas-utils uses the following dependencies:\n");
-        println!("clap:\n{}\n", LICENCE_CLAP);
-        println!("csv:\n{}\n", LICENCE_CSV);
-        println!("flate2:\n{}\n", LICENCE_FLATE2);
-        println!("regex:\n{}\n", LICENCE_REGEX);
-        println!("serde_json:\n{}\n", LICENCE_SERDE);
-        println!("statrs:\n{}\n", LICENCE_STATRS);
-        println!("thiserror:\n{}\n", LICENCE_THISERROR);
+        print!("{NOTICE}");
+        return Ok(());
+    }
+
+    if let Some(true) = matches.get_one::<bool>("licences_summary") {
+        println!("{}", get_notice_summary());
+        println!(
+            "Use \"gu --licences\" to print the full text, including all third-party notices."
+        );
         return Ok(());
     }
 
@@ -135,4 +155,17 @@ fn run_subcommand(
     execute: impl FnOnce() -> Result<(), GuError>,
 ) -> Result<(), SubcommandError> {
     execute().map_err(|source| SubcommandError { source, usage })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_notice_summary_stops_before_first_third_party_notice() {
+        let summary = get_notice_summary();
+        assert!(summary.starts_with("gwas-utils is licensed under the MIT License"));
+        assert!(!summary.contains("---"));
+        assert!(summary.len() < NOTICE.len());
+    }
 }
