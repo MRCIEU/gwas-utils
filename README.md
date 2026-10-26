@@ -96,7 +96,6 @@ Commands:
   delim     Change the delimeter of a CSV file
   filter    Filter rows from a CSV file based on column-specific expressions
   merge     Merge two CSV files based on a shared column. Duplicate keys are not handled sensibly
-  regenify  Write a tab separated file with missing data replaced by "NA"s
   reheader  Reheader a CSV file
   select    Select specific columns from a CSV file
   split     Split a CSV file into multiple files based on unique values in a specified categorical column
@@ -209,22 +208,6 @@ Options:
       --d1 <D1>          Delimiter for CSV file reading and writing [default: auto]
       --d2 <D2>          Delimiter for the second CSV file [default: auto]
   -f, --fill <FILL>      Fill string for missing values in unmatched rows (left, right, outer joins) [default: ""]
-  -o, --output <OUTPUT>  CSV file to write (will be gzipped if filename ends with .gz) [default: stdout]
-  -h, --help             Print help
-```
-
-```
-❯ gu csv regenify -h
-Write a tab separated file with missing data replaced by "NA"s
-
-Usage: gu csv regenify infile.csv[.gz] [-o outfile.tsv[.gz]]
-
-Arguments:
-  [INPUT]  CSV file to process (can be gzipped if filename ends with .gz) [default: stdin]
-
-Options:
-  -d, --delim <DELIM>    Delimiter for CSV file reading and writing [default: auto]
-      --no-rep-neg-one   Don't replace -1 with NA
   -o, --output <OUTPUT>  CSV file to write (will be gzipped if filename ends with .gz) [default: stdout]
   -h, --help             Print help
 ```
