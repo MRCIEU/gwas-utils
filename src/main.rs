@@ -107,6 +107,9 @@ fn run() -> Result<(), SubcommandError> {
     add_subcommands!(
         csv_cmg, addp, addz, cat, delim, filter, merge, regenify, reheader, select, split
     );
+
+    csv_cmg = csv_cmg.mut_subcommand("regenify", |c| c.hide(true));
+
     add_subcommands!(stats_cmg, lambda);
     add_subcommands!(dn_cmg, make_dxfuse_manifest);
 
