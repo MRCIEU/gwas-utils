@@ -1,11 +1,11 @@
 use clap::Parser;
 use std::io;
 
-use gwas_utils::{Result, open_reader, open_writer};
+use gwas_utils::{Result, open_writer};
 
 use crate::csv::lib::{
     get_column_idx_from_name, get_column_value_from_idx, get_csv_reader, get_csv_writer,
-    get_delimeter_from_cli_argument, get_p_from_log10_p,
+    get_p_from_log10_p, open_input, parse_optional_f64, with_value_context,
 };
 
 pub(crate) const ABOUT: &str = "Add a P column to a CSV file based on a (minus) LOG10P column";
@@ -17,7 +17,7 @@ pub(crate) fn get_usage() -> String {
 
 #[derive(Parser, Debug)]
 pub(crate) struct Args {
-    /// CSV file to process (can be gzipped if filename ends with .gz)
+    /// CSV file to process (gzipped input is detected automatically)
     #[arg(default_value = "stdin")]
     input: String,
 
@@ -42,12 +42,8 @@ pub(crate) fn run(args: Args) -> Result<()> {
 fn handle_commandline_args(
     args: Args,
 ) -> Result<(gwas_utils::Reader, gwas_utils::Writer, char, String)> {
-    let mut file_rdr = open_reader(&args.input)?;
+    let (file_rdr, sep) = open_input(&args.input, &args.delim)?;
     let file_wtr = open_writer(&args.output)?;
-    let sep = match args.delim.as_str() {
-        "auto" => file_rdr.sniff_csv_delimiter()?,
-        _ => get_delimeter_from_cli_argument(&args.delim)?,
-    };
     Ok((file_rdr, file_wtr, sep, args.log10p))
 }
 
@@ -67,7 +63,11 @@ where
     for result in csv_rdr.records() {
         let mut record = result?;
         let log10_p_val = get_column_value_from_idx(&record, log10_p_col_idx)?;
-        let ps = get_p_string_from_log10_p(log10_p_val)?;
+        let ps = with_value_context(
+            get_p_string_from_log10_p(log10_p_val),
+            &log10_p_col,
+            &record,
+        )?;
         record.push_field(&ps);
         csv_wtr.write_record(&record)?;
     }
@@ -78,9 +78,9 @@ where
 }
 
 fn get_p_string_from_log10_p(log10_p_val: &str) -> Result<String> {
-    match log10_p_val.parse::<f64>() {
-        Ok(log10_p) => Ok(format!("{:E}", get_p_from_log10_p(log10_p))),
-        Err(_) => Ok("NA".into()),
+    match parse_optional_f64(log10_p_val)? {
+        Some(log10_p) => Ok(format!("{:E}", get_p_from_log10_p(log10_p))),
+        None => Ok("NA".into()),
     }
 }
 
@@ -101,6 +101,13 @@ mod tests {
         let log10_p = "1000.0";
         let p = get_p_string_from_log10_p(log10_p).unwrap();
         assert_eq!(p, format!("{:E}", f64::MIN_POSITIVE));
+    }
+
+    #[test]
+    fn test_missing_and_invalid_log10p() {
+        assert_eq!(get_p_string_from_log10_p("NA").unwrap(), "NA");
+        assert_eq!(get_p_string_from_log10_p("").unwrap(), "NA");
+        assert!(get_p_string_from_log10_p("foo").is_err());
     }
 
     #[test]

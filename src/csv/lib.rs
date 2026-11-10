@@ -1,6 +1,6 @@
-use gwas_utils::{GuError, Result};
+use gwas_utils::{GuError, Reader, Result, open_reader};
 
-pub fn get_delimeter_from_cli_argument(sep: &str) -> Result<char> {
+pub fn get_delimiter_from_cli_argument(sep: &str) -> Result<char> {
     let single_ascii_err = "Delimiter must be a single ASCII character".to_string();
     let c = match sep {
         "\\t" => '\t',
@@ -11,6 +11,23 @@ pub fn get_delimeter_from_cli_argument(sep: &str) -> Result<char> {
         return Err(GuError::Message(single_ascii_err));
     }
     Ok(c)
+}
+
+/// Work out the delimiter to use for `rdr` from a command-line value: "auto" sniffs it from the
+/// start of the input, anything else is parsed as the delimiter itself.
+pub(crate) fn resolve_delimiter(rdr: &mut Reader, delim: &str) -> Result<char> {
+    match delim {
+        "auto" => rdr.sniff_csv_delimiter(),
+        _ => get_delimiter_from_cli_argument(delim),
+    }
+}
+
+/// Open an input file (or "stdin") and work out its delimiter (see `resolve_delimiter`).
+/// Inputs must be opened before outputs, so that an output can't overwrite an input.
+pub(crate) fn open_input(filename: &str, delim: &str) -> Result<(Reader, char)> {
+    let mut rdr = open_reader(filename)?;
+    let sep = resolve_delimiter(&mut rdr, delim)?;
+    Ok((rdr, sep))
 }
 
 pub(crate) fn get_csv_reader<R: std::io::Read>(rdr: R, sep: char) -> csv::Reader<R> {
@@ -74,7 +91,47 @@ pub(crate) fn get_column_value_from_idx(
     record.get(col_idx).ok_or(column_idx_out_of_bounds_error())
 }
 
+/// Whether a field is one of the conventional markers for a missing value
+/// (empty, NA, N/A, NaN; case-insensitive)
+pub(crate) fn is_missing(value: &str) -> bool {
+    let v = value.trim();
+    v.is_empty()
+        || v.eq_ignore_ascii_case("na")
+        || v.eq_ignore_ascii_case("n/a")
+        || v.eq_ignore_ascii_case("nan")
+}
+
+/// Parse a numeric field. Missing values (see `is_missing`) give `Ok(None)`; anything else that
+/// isn't a number is an error rather than being silently treated as missing.
+pub(crate) fn parse_optional_f64(value: &str) -> Result<Option<f64>> {
+    if is_missing(value) {
+        return Ok(None);
+    }
+    match value.trim().parse::<f64>() {
+        Ok(v) if v.is_nan() => Ok(None),
+        Ok(v) => Ok(Some(v)),
+        Err(_) => Err(GuError::Message(format!(
+            "Invalid numeric value \"{}\"",
+            value
+        ))),
+    }
+}
+
+/// Prefix an error with the column and line it came from
+pub(crate) fn with_value_context<T>(
+    result: Result<T>,
+    column: &str,
+    record: &csv::StringRecord,
+) -> Result<T> {
+    result.map_err(|e| match record.position() {
+        Some(pos) => GuError::Message(format!("Column \"{}\", line {}: {}", column, pos.line(), e)),
+        None => GuError::Message(format!("Column \"{}\": {}", column, e)),
+    })
+}
+
 pub(crate) fn get_p_from_log10_p(log10_p: f64) -> f64 {
+    // The `* -1.0` is deliberate: it's more explicit than a bare negation. Don't "simplify" it.
+    #[allow(clippy::neg_multiply)]
     let temp = log10_p.abs() * -1.0; // Convert to negative number regardless of input sign (these are p-values so they must be <= 1)
     let p = f64::powf(10.0, temp);
     if p == 0.0 { f64::MIN_POSITIVE } else { p }
@@ -87,12 +144,31 @@ mod tests {
 
     #[test]
     fn test_get_delimiter() {
-        assert_eq!(get_delimeter_from_cli_argument("\t").unwrap(), '\t');
-        assert_eq!(get_delimeter_from_cli_argument("\\t").unwrap(), '\t');
-        assert_eq!(get_delimeter_from_cli_argument(r#"	"#).unwrap(), '\t');
-        assert_eq!(get_delimeter_from_cli_argument(" ").unwrap(), ' ');
-        assert_eq!(get_delimeter_from_cli_argument(",").unwrap(), ',');
-        assert!(get_delimeter_from_cli_argument("::").is_err());
+        assert_eq!(get_delimiter_from_cli_argument("\t").unwrap(), '\t');
+        assert_eq!(get_delimiter_from_cli_argument("\\t").unwrap(), '\t');
+        assert_eq!(get_delimiter_from_cli_argument(r#"	"#).unwrap(), '\t');
+        assert_eq!(get_delimiter_from_cli_argument(" ").unwrap(), ' ');
+        assert_eq!(get_delimiter_from_cli_argument(",").unwrap(), ',');
+        assert!(get_delimiter_from_cli_argument("::").is_err());
+    }
+
+    #[test]
+    fn test_is_missing() {
+        for v in ["", " ", "NA", "na", "N/A", "NaN", "nan"] {
+            assert!(is_missing(v), "{v:?} should be missing");
+        }
+        for v in ["0", "foo", "-1", "inf"] {
+            assert!(!is_missing(v), "{v:?} should not be missing");
+        }
+    }
+
+    #[test]
+    fn test_parse_optional_f64() {
+        assert_eq!(parse_optional_f64("1.5").unwrap(), Some(1.5));
+        assert_eq!(parse_optional_f64(" 2 ").unwrap(), Some(2.0));
+        assert_eq!(parse_optional_f64("NA").unwrap(), None);
+        assert_eq!(parse_optional_f64("").unwrap(), None);
+        assert!(parse_optional_f64("foo").is_err());
     }
 
     #[test]

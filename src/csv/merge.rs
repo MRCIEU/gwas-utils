@@ -2,15 +2,14 @@ use clap::Parser;
 use std::collections::HashMap;
 use std::io;
 
-use gwas_utils::{GuError, Result, open_reader, open_writer};
+use gwas_utils::{GuError, Result, open_writer};
 
 use crate::csv::lib::{
     get_column_idx_from_name, get_column_value_from_idx, get_csv_reader, get_csv_writer,
-    get_delimeter_from_cli_argument,
+    is_missing, open_input,
 };
 
-pub(crate) const ABOUT: &str =
-    "Merge two CSV files based on a shared column. Duplicate keys are not handled sensibly";
+pub(crate) const ABOUT: &str = "Merge two CSV files based on a shared column";
 pub(crate) const USAGE: &str =
     "gu csv merge infile1.csv[.gz] infile2.csv[.gz] -c KEY_COLUMN [-o outfile.csv[.gz]]";
 
@@ -18,7 +17,7 @@ pub(crate) fn get_usage() -> String {
     USAGE.to_string()
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 enum JoinType {
     Inner,
     Left,
@@ -39,9 +38,31 @@ impl std::str::FromStr for JoinType {
     }
 }
 
+/// What to do when a key that must be unique appears on more than one row.
+// FOLLOW-UP: an `all` policy (keep every row, i.e. full one-to-many / many-to-many joins) was
+// deliberately left out for now. See CLAUDE.md.
+#[derive(Debug, Clone, Copy, PartialEq)]
+enum DuplicatePolicy {
+    Error,
+    First,
+    Last,
+}
+
+impl std::str::FromStr for DuplicatePolicy {
+    type Err = GuError;
+    fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
+        match s {
+            "error" => Ok(DuplicatePolicy::Error),
+            "first" => Ok(DuplicatePolicy::First),
+            "last" => Ok(DuplicatePolicy::Last),
+            _ => Err(GuError::Message(format!("Unknown duplicate policy: {s}"))),
+        }
+    }
+}
+
 #[derive(Parser, Debug)]
 pub(crate) struct Args {
-    /// CSV files to merge (can be gzipped if filenames end with .gz). Right-hand file is streamed from disk for --join=inner and --join=right
+    /// CSV files to merge (gzipped input is detected automatically). The first file is held in memory, so its keys should be unique (see --on-duplicate). The second file is streamed from disk for --join=inner and --join=right (see --strict); keys that repeat in it each produce an output row. Rows with a missing key (empty, NA) never match
     #[arg(num_args = 2, required = true)]
     input: Vec<String>,
 
@@ -58,6 +79,16 @@ pub(crate) struct Args {
     /// Column name to merge on for second file, if different
     #[arg(long)]
     c2: Option<String>,
+
+    /// What to do if a key is repeated in the first file: error, or keep only the first or last row for that key (the kept row stays in the position of the first)
+    #[arg(long, default_value = "error", value_parser = clap::builder::PossibleValuesParser::new(
+         ["error", "first", "last"]
+     ),)]
+    on_duplicate: String,
+
+    /// Load both files into memory and apply --on-duplicate to the second file as well as the first
+    #[arg(long, default_value_t = false)]
+    strict: bool,
 
     /// Delimiter for CSV file reading and writing
     #[arg(long, default_value = "auto")]
@@ -76,20 +107,20 @@ pub(crate) struct Args {
     output: String,
 }
 
+struct MergeConfig {
+    column1: String,
+    column2: Option<String>,
+    join: JoinType,
+    on_duplicate: DuplicatePolicy,
+    strict: bool,
+    fill: String,
+    sep1: char,
+    sep2: char,
+}
+
 pub(crate) fn run(args: Args) -> Result<()> {
-    let (file_rdr1, file_rdr2, file_wtr, merge_column1, merge_column2, join_type, fill, sep1, sep2) =
-        handle_commandline_args(args)?;
-    process_files(
-        file_rdr1,
-        file_rdr2,
-        file_wtr,
-        merge_column1,
-        merge_column2,
-        join_type,
-        &fill,
-        sep1,
-        sep2,
-    )
+    let (file_rdr1, file_rdr2, file_wtr, config) = handle_commandline_args(args)?;
+    process_files(file_rdr1, file_rdr2, file_wtr, &config)
 }
 
 fn handle_commandline_args(
@@ -98,151 +129,264 @@ fn handle_commandline_args(
     gwas_utils::Reader,
     gwas_utils::Reader,
     gwas_utils::Writer,
-    String,
-    Option<String>,
-    JoinType,
-    String,
-    char,
-    char,
+    MergeConfig,
 )> {
-    let mut file_rdr1 = open_reader(&args.input[0])?;
-    let mut file_rdr2 = open_reader(&args.input[1])?;
+    let (file_rdr1, sep1) = open_input(&args.input[0], &args.d1)?;
+    let (file_rdr2, sep2) = open_input(&args.input[1], &args.d2)?;
     let file_wtr = open_writer(&args.output)?;
-    let sep1 = match args.d1.as_str() {
-        "auto" => file_rdr1.sniff_csv_delimiter()?,
-        _ => get_delimeter_from_cli_argument(&args.d1)?,
-    };
-    let sep2 = match args.d2.as_str() {
-        "auto" => file_rdr2.sniff_csv_delimiter()?,
-        _ => get_delimeter_from_cli_argument(&args.d2)?,
-    };
-    let join_type: JoinType = args.join.parse()?;
-    Ok((
-        file_rdr1,
-        file_rdr2,
-        file_wtr,
-        args.column,
-        args.c2,
-        join_type,
-        args.fill,
+    let config = MergeConfig {
+        column1: args.column,
+        column2: args.c2,
+        join: args.join.parse()?,
+        on_duplicate: args.on_duplicate.parse()?,
+        strict: args.strict,
+        fill: args.fill,
         sep1,
         sep2,
-    ))
+    };
+    Ok((file_rdr1, file_rdr2, file_wtr, config))
 }
 
-fn process_files<R, W>(
-    rdr1: R,
+/// A file held in memory, in file order, with a lookup from key to row.
+/// Rows with a missing key are kept in `rows` but are not in `index`, so they never match.
+struct Table {
+    header: csv::StringRecord,
+    key_idx: usize,
+    rows: Vec<csv::StringRecord>,
+    index: HashMap<String, usize>,
+}
+
+/// Load a file in which keys must be unique, resolving repeated keys according to `policy`.
+/// `label` names the file in error messages.
+fn load_table<R>(
+    rdr: R,
+    sep: char,
+    key: &str,
+    policy: DuplicatePolicy,
+    label: &str,
+) -> Result<Table>
+where
+    R: io::Read,
+{
+    let mut csv_rdr = get_csv_reader(rdr, sep);
+    let header = csv_rdr.headers()?.clone();
+    let key_idx = get_column_idx_from_name(&header, key)?;
+
+    let mut rows: Vec<csv::StringRecord> = Vec::new();
+    let mut index: HashMap<String, usize> = HashMap::new();
+
+    for result in csv_rdr.records() {
+        let record = result?;
+        let key_value = get_column_value_from_idx(&record, key_idx)?;
+        if is_missing(key_value) {
+            rows.push(record);
+            continue;
+        }
+        match index.get(key_value).copied() {
+            Some(existing) => match policy {
+                DuplicatePolicy::Error => {
+                    let line = record.position().map_or(0, |p| p.line());
+                    return Err(GuError::Message(format!(
+                        "Duplicate key \"{}\" in {} (line {}). Use --on-duplicate first or last to keep a single row per key",
+                        key_value, label, line
+                    )));
+                }
+                DuplicatePolicy::First => {}
+                DuplicatePolicy::Last => rows[existing] = record,
+            },
+            None => {
+                index.insert(key_value.to_string(), rows.len());
+                rows.push(record);
+            }
+        }
+    }
+
+    Ok(Table {
+        header,
+        key_idx,
+        rows,
+        index,
+    })
+}
+
+type RecordIter<'a> = Box<dyn Iterator<Item = Result<csv::StringRecord>> + 'a>;
+
+/// The second file as a header, the index of its key column, and its rows.
+/// By default the rows are read lazily from the file. With `--strict` the file is loaded first so
+/// that `--on-duplicate` can be applied to it. Either way the rows come out in file order.
+fn open_second_file<'a, R>(
+    rdr: R,
+    config: &MergeConfig,
+    key: &str,
+) -> Result<(csv::StringRecord, usize, RecordIter<'a>)>
+where
+    R: io::Read + 'a,
+{
+    if config.strict {
+        let table = load_table(
+            rdr,
+            config.sep2,
+            key,
+            config.on_duplicate,
+            "the second file",
+        )?;
+        let rows = table.rows.into_iter().map(Ok);
+        Ok((table.header, table.key_idx, Box::new(rows)))
+    } else {
+        let mut csv_rdr = get_csv_reader(rdr, config.sep2);
+        let header = csv_rdr.headers()?.clone();
+        let key_idx = get_column_idx_from_name(&header, key)?;
+        let rows = csv_rdr.into_records().map(|r| r.map_err(GuError::from));
+        Ok((header, key_idx, Box::new(rows)))
+    }
+}
+
+fn process_files<R, W>(rdr1: R, rdr2: R, wtr: W, config: &MergeConfig) -> Result<()>
+where
+    R: io::Read,
+    W: io::Write,
+{
+    let key2 = config.column2.as_deref().unwrap_or(&config.column1);
+    let table1 = load_table(
+        rdr1,
+        config.sep1,
+        &config.column1,
+        config.on_duplicate,
+        "the first file",
+    )?;
+
+    match config.join {
+        JoinType::Inner | JoinType::Right => {
+            join_streaming(table1, open_second_file(rdr2, config, key2)?, wtr, config)
+        }
+        JoinType::Left | JoinType::Outer => join_all_file1_rows(table1, rdr2, wtr, config, key2),
+    }
+}
+
+/// Inner and right joins: file1 is in memory and each row of file2 is looked up in it,
+/// so the output is in file2 order
+fn join_streaming<W>(
+    table1: Table,
+    (header2, key_idx2, records2): (csv::StringRecord, usize, RecordIter<'_>),
+    wtr: W,
+    config: &MergeConfig,
+) -> Result<()>
+where
+    W: io::Write,
+{
+    let file1_width = table1.header.len();
+    let combined_header = combine_records(table1.header.clone(), header2, key_idx2)?;
+    let mut csv_wtr = get_csv_writer(wtr, config.sep1);
+    csv_wtr.write_record(&combined_header)?;
+
+    for result in records2 {
+        let record = result?;
+        let key_value = get_column_value_from_idx(&record, key_idx2)?;
+        let match1 = if is_missing(key_value) {
+            None
+        } else {
+            table1.index.get(key_value).map(|&i| &table1.rows[i])
+        };
+        match (match1, config.join) {
+            (Some(r1), _) => {
+                csv_wtr.write_record(&combine_records(r1.clone(), record, key_idx2)?)?;
+            }
+            (None, JoinType::Right) => {
+                csv_wtr.write_record(&make_right_only_row(
+                    key_value,
+                    &record,
+                    table1.key_idx,
+                    file1_width,
+                    key_idx2,
+                    &config.fill,
+                ))?;
+            }
+            (None, _) => {} // inner join: no match, skip
+        }
+    }
+
+    csv_wtr.flush()?;
+    Ok(())
+}
+
+/// Left and outer joins: every row of file1 is written, so both files are held in memory and the
+/// output is in file1 order (followed, for outer joins, by the rows only in file2)
+fn join_all_file1_rows<R, W>(
+    table1: Table,
     rdr2: R,
     wtr: W,
-    merge_column1: String,
-    merge_column2: Option<String>,
-    join_type: JoinType,
-    fill: &str,
-    sep1: char,
-    sep2: char,
+    config: &MergeConfig,
+    key2: &str,
 ) -> Result<()>
 where
     R: io::Read,
     W: io::Write,
 {
-    let merge_column2 = merge_column2.unwrap_or_else(|| merge_column1.clone());
+    let (header2, key_idx2, records2) = open_second_file(rdr2, config, key2)?;
+    let rows2 = records2.collect::<Result<Vec<_>>>()?;
 
-    // Inner and right joins only need file1 in memory; file2 can be streamed.
-    // Left and outer joins must load both files to iterate file1 with file2 lookups.
-    match join_type {
-        JoinType::Inner | JoinType::Right => {
-            let (header1, map1, _) = load_csv(rdr1, sep1, &merge_column1)?;
-            let key_column_idx1 = get_column_idx_from_name(&header1, &merge_column1)?;
-            let file1_width = header1.len();
-
-            let mut csv_rdr2 = get_csv_reader(rdr2, sep2);
-            let header2 = csv_rdr2.headers()?.clone();
-            let key_column_idx2 = get_column_idx_from_name(&header2, &merge_column2)?;
-
-            let combined_header = combine_records(header1.clone(), header2, key_column_idx2)?;
-            let mut csv_wtr = get_csv_writer(wtr, sep1);
-            csv_wtr.write_record(&combined_header)?;
-
-            for result in csv_rdr2.records() {
-                let record = result?;
-                let key_value = get_column_value_from_idx(&record, key_column_idx2)?;
-                match (map1.get(key_value), &join_type) {
-                    (Some(r1), _) => {
-                        csv_wtr.write_record(&combine_records(
-                            r1.clone(),
-                            record,
-                            key_column_idx2,
-                        )?)?;
-                    }
-                    (None, JoinType::Right) => {
-                        csv_wtr.write_record(&make_right_only_row(
-                            key_value,
-                            &record,
-                            key_column_idx1,
-                            file1_width,
-                            key_column_idx2,
-                            fill,
-                        ))?;
-                    }
-                    (None, _) => {} // inner join: no match, skip
-                }
-            }
+    let mut index2: HashMap<&str, Vec<usize>> = HashMap::new();
+    for (i, row) in rows2.iter().enumerate() {
+        let key_value = get_column_value_from_idx(row, key_idx2)?;
+        if !is_missing(key_value) {
+            index2.entry(key_value).or_default().push(i);
         }
-        JoinType::Left | JoinType::Outer => {
-            let (header1, map1, keys1) = load_csv(rdr1, sep1, &merge_column1)?;
-            let (header2, map2, keys2) = load_csv(rdr2, sep2, &merge_column2)?;
+    }
+    let mut matched = vec![false; rows2.len()];
 
-            let key_column_idx1 = get_column_idx_from_name(&header1, &merge_column1)?;
-            let key_column_idx2 = get_column_idx_from_name(&header2, &merge_column2)?;
+    let file1_width = table1.header.len();
+    let file2_extra_width = header2.len() - 1;
+    let combined_header = combine_records(table1.header.clone(), header2, key_idx2)?;
+    let mut csv_wtr = get_csv_writer(wtr, config.sep1);
+    csv_wtr.write_record(&combined_header)?;
 
-            let combined_header =
-                combine_records(header1.clone(), header2.clone(), key_column_idx2)?;
-            let file1_width = header1.len();
-            let file2_extra_width = header2.len() - 1;
-
-            let mut csv_wtr = get_csv_writer(wtr, sep1);
-            csv_wtr.write_record(&combined_header)?;
-
-            // All rows from file1, with empty file2 fields where there is no match
-            for key in &keys1 {
-                let r1 = map1.get(key).unwrap();
-                match map2.get(key) {
-                    Some(r2) => {
-                        csv_wtr.write_record(&combine_records(
-                            r1.clone(),
-                            r2.clone(),
-                            key_column_idx2,
-                        )?)?;
-                    }
-                    None => {
-                        let mut row = r1.clone();
-                        for _ in 0..file2_extra_width {
-                            row.push_field(fill);
-                        }
-                        csv_wtr.write_record(&row)?;
-                    }
+    // All rows from file1, with fill values where there is no match in file2
+    for r1 in &table1.rows {
+        let key_value = get_column_value_from_idx(r1, table1.key_idx)?;
+        let matches = if is_missing(key_value) {
+            None
+        } else {
+            index2.get(key_value)
+        };
+        match matches {
+            Some(indices) => {
+                for &i in indices {
+                    matched[i] = true;
+                    csv_wtr.write_record(&combine_records(
+                        r1.clone(),
+                        rows2[i].clone(),
+                        key_idx2,
+                    )?)?;
                 }
             }
-
-            // Outer only: append rows present only in file2
-            if join_type == JoinType::Outer {
-                for key in &keys2 {
-                    if !map1.contains_key(key) {
-                        let r2 = map2.get(key).unwrap();
-                        csv_wtr.write_record(&make_right_only_row(
-                            key,
-                            r2,
-                            key_column_idx1,
-                            file1_width,
-                            key_column_idx2,
-                            fill,
-                        ))?;
-                    }
+            None => {
+                let mut row = r1.clone();
+                for _ in 0..file2_extra_width {
+                    row.push_field(&config.fill);
                 }
+                csv_wtr.write_record(&row)?;
             }
         }
     }
 
+    // Outer only: append rows present only in file2
+    if config.join == JoinType::Outer {
+        for (i, r2) in rows2.iter().enumerate() {
+            if !matched[i] {
+                let key_value = get_column_value_from_idx(r2, key_idx2)?;
+                csv_wtr.write_record(&make_right_only_row(
+                    key_value,
+                    r2,
+                    table1.key_idx,
+                    file1_width,
+                    key_idx2,
+                    &config.fill,
+                ))?;
+            }
+        }
+    }
+
+    csv_wtr.flush()?;
     Ok(())
 }
 
@@ -270,37 +414,6 @@ fn make_right_only_row(
         }
     }
     row
-}
-
-fn load_csv<R>(
-    rdr: R,
-    sep: char,
-    key: &str,
-) -> Result<(
-    csv::StringRecord,
-    HashMap<String, csv::StringRecord>,
-    Vec<String>,
-)>
-where
-    R: io::Read,
-{
-    let mut csv_rdr = get_csv_reader(rdr, sep);
-    let header = csv_rdr.headers()?.clone();
-    let key_column_idx = get_column_idx_from_name(&header, key)?;
-
-    let mut map = HashMap::new();
-    let mut keys = Vec::new();
-
-    for result in csv_rdr.records() {
-        let record = result?;
-        let key_value = get_column_value_from_idx(&record, key_column_idx)?.to_string();
-        if !map.contains_key(&key_value) {
-            keys.push(key_value.clone());
-        }
-        map.insert(key_value, record);
-    }
-
-    Ok((header, map, keys))
 }
 
 fn combine_records(
@@ -348,60 +461,82 @@ mod tests {
         );
     }
 
-    // --- load_csv ---
+    // --- load_table ---
 
-    #[test]
-    fn test_load_csv_header_and_map() {
-        let input = r#"ID,VALUE
-A,1
-B,2
-C,3
-"#;
-        let (header, map, keys) =
-            load_csv(std::io::Cursor::new(input.as_bytes()), ',', "ID").unwrap();
-        assert_eq!(header, csv::StringRecord::from(vec!["ID", "VALUE"]));
-        assert_eq!(keys, vec!["A", "B", "C"]);
-        assert_eq!(map["A"], csv::StringRecord::from(vec!["A", "1"]));
-        assert_eq!(map["B"], csv::StringRecord::from(vec!["B", "2"]));
-        assert_eq!(map["C"], csv::StringRecord::from(vec!["C", "3"]));
+    fn load(input: &str, key: &str, policy: DuplicatePolicy) -> Result<Table> {
+        load_table(
+            std::io::Cursor::new(input.as_bytes()),
+            ',',
+            key,
+            policy,
+            "test file",
+        )
     }
 
     #[test]
-    fn test_load_csv_key_not_first_column() {
-        // Key column is VALUE, not the first column
-        let input = r#"ID,VALUE
-1,A
-2,B
-"#;
-        let (header, map, keys) =
-            load_csv(std::io::Cursor::new(input.as_bytes()), ',', "VALUE").unwrap();
-        assert_eq!(header, csv::StringRecord::from(vec!["ID", "VALUE"]));
-        assert_eq!(keys, vec!["A", "B"]);
-        assert_eq!(map["A"], csv::StringRecord::from(vec!["1", "A"]));
+    fn test_load_table_header_rows_and_index() {
+        let t = load("ID,VALUE\nA,1\nB,2\nC,3\n", "ID", DuplicatePolicy::Error).unwrap();
+        assert_eq!(t.header, csv::StringRecord::from(vec!["ID", "VALUE"]));
+        assert_eq!(t.key_idx, 0);
+        assert_eq!(t.rows.len(), 3);
+        assert_eq!(
+            t.rows[t.index["B"]],
+            csv::StringRecord::from(vec!["B", "2"])
+        );
     }
 
     #[test]
-    fn test_load_csv_duplicate_keys_last_wins() {
-        // Duplicate keys: the last record for a given key is kept
-        let input = r#"ID,VALUE
-A,1
-A,2
-B,3
-"#;
-        let (_, map, keys) = load_csv(std::io::Cursor::new(input.as_bytes()), ',', "ID").unwrap();
-        // Key order: A appears once (first occurrence), then B
-        assert_eq!(keys, vec!["A", "B"]);
-        // Last record for A wins
-        assert_eq!(map["A"], csv::StringRecord::from(vec!["A", "2"]));
+    fn test_load_table_key_not_first_column() {
+        let t = load("ID,VALUE\n1,A\n2,B\n", "VALUE", DuplicatePolicy::Error).unwrap();
+        assert_eq!(t.key_idx, 1);
+        assert_eq!(
+            t.rows[t.index["A"]],
+            csv::StringRecord::from(vec!["1", "A"])
+        );
     }
 
     #[test]
-    fn test_load_csv_missing_key_column_errors() {
-        let input = r#"ID,VALUE
-A,1
-"#;
-        let result = load_csv(std::io::Cursor::new(input.as_bytes()), ',', "MISSING");
-        assert!(result.is_err());
+    fn test_load_table_duplicate_keys_policies() {
+        let input = "ID,VALUE\nA,1\nB,3\nA,2\n";
+
+        let err = load(input, "ID", DuplicatePolicy::Error).err().unwrap();
+        let msg = err.to_string();
+        assert!(
+            msg.contains("\"A\"") && msg.contains("test file") && msg.contains("line 4"),
+            "{msg}"
+        );
+
+        // First: the first row for the key is kept
+        let t = load(input, "ID", DuplicatePolicy::First).unwrap();
+        assert_eq!(t.rows.len(), 2);
+        assert_eq!(
+            t.rows[t.index["A"]],
+            csv::StringRecord::from(vec!["A", "1"])
+        );
+
+        // Last: the last row is kept, in the position of the first
+        let t = load(input, "ID", DuplicatePolicy::Last).unwrap();
+        assert_eq!(t.rows.len(), 2);
+        assert_eq!(t.rows[0], csv::StringRecord::from(vec!["A", "2"]));
+        assert_eq!(t.rows[1], csv::StringRecord::from(vec!["B", "3"]));
+    }
+
+    #[test]
+    fn test_load_table_missing_keys_are_kept_but_not_indexed() {
+        // Repeated missing keys aren't duplicates
+        let t = load(
+            "ID,VALUE\nA,1\nNA,2\n,3\nNA,4\n",
+            "ID",
+            DuplicatePolicy::Error,
+        )
+        .unwrap();
+        assert_eq!(t.rows.len(), 4);
+        assert_eq!(t.index.len(), 1);
+    }
+
+    #[test]
+    fn test_load_table_missing_key_column_errors() {
+        assert!(load("ID,VALUE\nA,1\n", "MISSING", DuplicatePolicy::Error).is_err());
     }
 
     // --- make_right_only_row ---
@@ -442,20 +577,8 @@ A,1
         join_type: JoinType,
         fill: &str,
     ) -> String {
-        let mut wtr = std::io::Cursor::new(Vec::new());
-        process_files(
-            std::io::Cursor::new(input1.as_bytes()),
-            std::io::Cursor::new(input2.as_bytes()),
-            &mut wtr,
-            col1.to_string(),
-            col2.map(|s| s.to_string()),
-            join_type,
-            fill,
-            ',',
-            ',',
-        )
-        .unwrap();
-        String::from_utf8(wtr.into_inner()).unwrap()
+        let cfg = test_config(col1, col2, join_type, fill, DuplicatePolicy::Error, false);
+        run_with_config(input1, input2, &cfg).unwrap()
     }
 
     #[test]
@@ -684,5 +807,159 @@ C,3,103
 D,NA,104
 "#
         );
+    }
+
+    // --- duplicate keys, missing keys and --strict --- //
+
+    fn test_config(
+        col1: &str,
+        col2: Option<&str>,
+        join: JoinType,
+        fill: &str,
+        on_duplicate: DuplicatePolicy,
+        strict: bool,
+    ) -> MergeConfig {
+        MergeConfig {
+            column1: col1.to_string(),
+            column2: col2.map(|s| s.to_string()),
+            join,
+            on_duplicate,
+            strict,
+            fill: fill.to_string(),
+            sep1: ',',
+            sep2: ',',
+        }
+    }
+
+    fn run_with_config(input1: &str, input2: &str, config: &MergeConfig) -> Result<String> {
+        let mut wtr = std::io::Cursor::new(Vec::new());
+        process_files(
+            std::io::Cursor::new(input1.as_bytes()),
+            std::io::Cursor::new(input2.as_bytes()),
+            &mut wtr,
+            config,
+        )?;
+        Ok(String::from_utf8(wtr.into_inner()).unwrap())
+    }
+
+    fn run_full(
+        input1: &str,
+        input2: &str,
+        join: JoinType,
+        on_duplicate: DuplicatePolicy,
+        strict: bool,
+    ) -> Result<String> {
+        let cfg = test_config("ID", None, join, "NA", on_duplicate, strict);
+        run_with_config(input1, input2, &cfg)
+    }
+
+    const ALL_JOINS: [JoinType; 4] = [
+        JoinType::Inner,
+        JoinType::Left,
+        JoinType::Right,
+        JoinType::Outer,
+    ];
+
+    #[test]
+    fn test_duplicate_keys_in_file1_are_an_error_by_default_for_every_join() {
+        for join in ALL_JOINS {
+            for strict in [false, true] {
+                let result = run_full(
+                    "ID,V1\nA,1\nA,2\n",
+                    "ID,V2\nA,9\n",
+                    join,
+                    DuplicatePolicy::Error,
+                    strict,
+                );
+                assert!(result.is_err(), "{join:?} strict={strict}");
+            }
+        }
+    }
+
+    #[test]
+    fn test_duplicate_keys_in_file1_first_and_last() {
+        let (f1, f2) = ("ID,V1\nA,1\nB,5\nA,2\n", "ID,V2\nA,9\nB,8\n");
+        for join in ALL_JOINS {
+            let first = run_full(f1, f2, join, DuplicatePolicy::First, false).unwrap();
+            assert!(first.contains("A,1,9"), "{join:?}: {first}");
+            let last = run_full(f1, f2, join, DuplicatePolicy::Last, false).unwrap();
+            assert!(last.contains("A,2,9"), "{join:?}: {last}");
+            // Either way there is exactly one row for A
+            assert_eq!(first.matches("A,").count(), 1);
+            assert_eq!(last.matches("A,").count(), 1);
+        }
+    }
+
+    #[test]
+    fn test_repeated_keys_in_file2_each_produce_a_row_by_default() {
+        let (f1, f2) = ("ID,V1\nA,1\nB,2\n", "ID,V2\nA,9\nA,8\nB,7\n");
+        for join in ALL_JOINS {
+            let out = run_full(f1, f2, join, DuplicatePolicy::Error, false).unwrap();
+            assert!(
+                out.contains("A,1,9") && out.contains("A,1,8") && out.contains("B,2,7"),
+                "{join:?}: {out}"
+            );
+        }
+    }
+
+    #[test]
+    fn test_strict_applies_the_policy_to_file2() {
+        let (f1, f2) = ("ID,V1\nA,1\nB,2\n", "ID,V2\nA,9\nA,8\nB,7\n");
+        for join in ALL_JOINS {
+            assert!(
+                run_full(f1, f2, join, DuplicatePolicy::Error, true).is_err(),
+                "{join:?}"
+            );
+            let first = run_full(f1, f2, join, DuplicatePolicy::First, true).unwrap();
+            assert!(
+                first.contains("A,1,9") && !first.contains("A,1,8"),
+                "{join:?}: {first}"
+            );
+            let last = run_full(f1, f2, join, DuplicatePolicy::Last, true).unwrap();
+            assert!(
+                last.contains("A,1,8") && !last.contains("A,1,9"),
+                "{join:?}: {last}"
+            );
+        }
+    }
+
+    #[test]
+    fn test_strict_gives_identical_output_when_there_are_no_duplicates() {
+        let f1 = "ID,V1\nA,1\nB,2\nC,3\nNA,4\n";
+        let f2 = "ID,V2\nD,104\nC,103\nB,102\n,105\n";
+        for join in ALL_JOINS {
+            let streaming = run_full(f1, f2, join, DuplicatePolicy::Error, false).unwrap();
+            let strict = run_full(f1, f2, join, DuplicatePolicy::Error, true).unwrap();
+            assert_eq!(streaming, strict, "{join:?}");
+        }
+    }
+
+    #[test]
+    fn test_missing_keys_never_match() {
+        let f1 = "ID,V1\nA,1\nNA,2\n,3\n";
+        let f2 = "ID,V2\nA,9\nNA,8\n,7\n";
+        for strict in [false, true] {
+            let inner = run_full(f1, f2, JoinType::Inner, DuplicatePolicy::Error, strict).unwrap();
+            assert_eq!(inner, "ID,V1,V2\nA,1,9\n");
+
+            // Unmatched file1 rows are kept with fill values
+            let left = run_full(f1, f2, JoinType::Left, DuplicatePolicy::Error, strict).unwrap();
+            assert_eq!(left, "ID,V1,V2\nA,1,9\nNA,2,NA\n,3,NA\n");
+
+            // Unmatched file2 rows are kept, with their own (missing) key
+            let right = run_full(f1, f2, JoinType::Right, DuplicatePolicy::Error, strict).unwrap();
+            assert_eq!(right, "ID,V1,V2\nA,1,9\nNA,NA,8\n,NA,7\n");
+
+            let outer = run_full(f1, f2, JoinType::Outer, DuplicatePolicy::Error, strict).unwrap();
+            assert_eq!(outer, "ID,V1,V2\nA,1,9\nNA,2,NA\n,3,NA\nNA,NA,8\n,NA,7\n");
+        }
+    }
+
+    #[test]
+    fn test_key_column_must_exist_in_both_files() {
+        for join in ALL_JOINS {
+            let cfg = test_config("ID", Some("NOPE"), join, "", DuplicatePolicy::Error, false);
+            assert!(run_with_config("ID,V\nA,1\n", "ID,V\nA,1\n", &cfg).is_err());
+        }
     }
 }

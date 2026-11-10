@@ -1,11 +1,13 @@
 use clap::Parser;
 use std::io;
 
-use gwas_utils::{Result, open_reader, open_writer};
+use gwas_utils::{Result, open_writer};
 
-use crate::csv::lib::{get_csv_reader, get_csv_writer, get_delimeter_from_cli_argument};
+use crate::csv::lib::{
+    get_csv_reader, get_csv_writer, get_delimiter_from_cli_argument, open_input,
+};
 
-pub(crate) const ABOUT: &str = "Change the delimeter of a CSV file";
+pub(crate) const ABOUT: &str = "Change the delimiter of a CSV file";
 pub(crate) const USAGE: &str = "gu csv delim infile.csv[.gz] -d\"\\t\" [-o outfile.tsv[.gz]]";
 
 pub(crate) fn get_usage() -> String {
@@ -14,7 +16,7 @@ pub(crate) fn get_usage() -> String {
 
 #[derive(Parser, Debug)]
 pub(crate) struct Args {
-    /// CSV file to process (can be gzipped if filename ends with .gz)
+    /// CSV file to process (gzipped input is detected automatically)
     #[arg(default_value = "stdin")]
     input: String,
 
@@ -39,13 +41,9 @@ pub(crate) fn run(args: Args) -> Result<()> {
 fn handle_commandline_args(
     args: Args,
 ) -> Result<(gwas_utils::Reader, gwas_utils::Writer, char, char)> {
-    let mut file_rdr = open_reader(&args.input)?;
+    let (file_rdr, sep_in) = open_input(&args.input, &args.din)?;
     let file_wtr = open_writer(&args.output)?;
-    let sep_in = match args.din.as_str() {
-        "auto" => file_rdr.sniff_csv_delimiter()?,
-        _ => get_delimeter_from_cli_argument(&args.din)?,
-    };
-    let sep_out = get_delimeter_from_cli_argument(&args.delim)?;
+    let sep_out = get_delimiter_from_cli_argument(&args.delim)?;
     Ok((file_rdr, file_wtr, sep_in, sep_out))
 }
 

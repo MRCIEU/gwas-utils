@@ -1,11 +1,11 @@
 use clap::Parser;
 use std::io;
 
-use gwas_utils::{Result, open_reader, open_writer};
+use gwas_utils::{Result, open_writer};
 
 use crate::csv::lib::{
     get_column_idx_from_name, get_column_value_from_idx, get_csv_reader, get_csv_writer,
-    get_delimeter_from_cli_argument,
+    open_input, parse_optional_f64, with_value_context,
 };
 
 pub(crate) const ABOUT: &str =
@@ -18,7 +18,7 @@ pub(crate) fn get_usage() -> String {
 
 #[derive(Parser, Debug)]
 pub(crate) struct Args {
-    /// CSV file to process (can be gzipped if filename ends with .gz)
+    /// CSV file to process (gzipped input is detected automatically)
     #[arg(default_value = "stdin")]
     input: String,
 
@@ -47,12 +47,8 @@ pub(crate) fn run(args: Args) -> Result<()> {
 fn handle_commandline_args(
     args: Args,
 ) -> Result<(gwas_utils::Reader, gwas_utils::Writer, char, String, String)> {
-    let mut file_rdr = open_reader(&args.input)?;
+    let (file_rdr, sep) = open_input(&args.input, &args.delim)?;
     let file_wtr = open_writer(&args.output)?;
-    let sep = match args.delim.as_str() {
-        "auto" => file_rdr.sniff_csv_delimiter()?,
-        _ => get_delimeter_from_cli_argument(&args.delim)?,
-    };
     Ok((file_rdr, file_wtr, sep, args.beta, args.se))
 }
 
@@ -74,7 +70,9 @@ where
         let mut record = result?;
         let beta_val = get_column_value_from_idx(&record, beta_col_idx)?;
         let se_val = get_column_value_from_idx(&record, se_col_idx)?;
-        let z_val = get_z_from_beta_se(beta_val, se_val)?;
+        let beta = with_value_context(parse_optional_f64(beta_val), &beta_col, &record)?;
+        let se = with_value_context(parse_optional_f64(se_val), &se_col, &record)?;
+        let z_val = get_z_from_beta_se(beta, se);
         record.push_field(&z_val);
         csv_wtr.write_record(&record)?;
     }
@@ -84,14 +82,12 @@ where
     Ok(())
 }
 
-fn get_z_from_beta_se(beta_val: &str, se_val: &str) -> Result<String> {
-    let beta = beta_val.parse::<f64>()?;
-    let se = se_val.parse::<f64>()?;
-    if se == 0.0 {
-        return Ok("NA".into());
+/// Z = beta / se, or "NA" if either value is missing or the standard error is zero
+fn get_z_from_beta_se(beta: Option<f64>, se: Option<f64>) -> String {
+    match (beta, se) {
+        (Some(beta), Some(se)) if se != 0.0 => format!("{:.6}", beta / se),
+        _ => "NA".into(),
     }
-    let z = beta / se;
-    Ok(format!("{:.6}", z))
 }
 
 #[cfg(test)]
@@ -108,10 +104,15 @@ mod tests {
 
     #[test]
     fn test_get_z_value() {
-        let beta = "0.1";
-        let se = "0.2";
-        let z = get_z_from_beta_se(beta, se).unwrap();
+        let z = get_z_from_beta_se(Some(0.1), Some(0.2));
         assert_eq!(z, format!("{:.6}", 0.5));
+    }
+
+    #[test]
+    fn test_get_z_value_missing() {
+        assert_eq!(get_z_from_beta_se(None, Some(0.2)), "NA");
+        assert_eq!(get_z_from_beta_se(Some(0.1), None), "NA");
+        assert_eq!(get_z_from_beta_se(Some(0.1), Some(0.0)), "NA");
     }
 
     #[test]

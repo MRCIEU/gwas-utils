@@ -1,11 +1,9 @@
 use clap::Parser;
-use std::{collections::HashMap, io};
+use std::io;
 
-use gwas_utils::{GuError, Result, open_reader, open_writer};
+use gwas_utils::{GuError, Result, open_writer};
 
-use crate::csv::lib::{
-    column_not_found_error, get_csv_reader, get_csv_writer, get_delimeter_from_cli_argument,
-};
+use crate::csv::lib::{column_not_found_error, get_csv_reader, get_csv_writer, open_input};
 
 pub(crate) const ABOUT: &str = "Reheader a CSV file";
 pub(crate) const USAGE: &str = r#"
@@ -18,11 +16,11 @@ pub(crate) fn get_usage() -> String {
 
 #[derive(Parser, Debug)]
 pub(crate) struct Args {
-    /// CSV file to process (can be gzipped if filename ends with .gz)
+    /// CSV file to process (gzipped input is detected automatically)
     #[arg(default_value = "stdin")]
     input: String,
 
-    /// New header to write (format: list of strings corresponding to new columm names)
+    /// New header to write (format: list of strings corresponding to new column names)
     #[arg(short, long, num_args = 1.., conflicts_with = "columns")]
     list: Vec<String>,
 
@@ -40,63 +38,68 @@ pub(crate) struct Args {
 }
 
 pub(crate) fn run(args: Args) -> Result<()> {
-    let (file_rdr, file_wtr, newheader, newcolumns, sep) = handle_commandline_args(args)?;
-    process_file(file_rdr, file_wtr, newheader, newcolumns, sep)?;
+    let (file_rdr, file_wtr, new_header, sep) = handle_commandline_args(args)?;
+    process_file(file_rdr, file_wtr, new_header, sep)?;
     Ok(())
 }
 
-fn handle_commandline_args(
-    args: Args,
-) -> Result<(
-    gwas_utils::Reader,
-    gwas_utils::Writer,
-    Option<csv::StringRecord>,
-    Option<HashMap<String, String>>,
-    char,
-)> {
-    let mut file_rdr = open_reader(&args.input)?;
-    let file_wtr = open_writer(&args.output)?;
-    let sep = match args.delim.as_str() {
-        "auto" => file_rdr.sniff_csv_delimiter()?,
-        _ => get_delimeter_from_cli_argument(&args.delim)?,
-    };
-    let new_header = if !args.list.is_empty() {
-        let mut sr = csv::StringRecord::new();
-        for h in args.list {
-            sr.push_field(&h);
-        }
-        Some(sr)
-    } else {
-        None
-    };
-    let new_columns = if !args.columns.is_empty() {
-        let mut m: HashMap<String, String> = HashMap::new();
-        for val in args.columns {
-            let parts: Vec<&str> = val.split('=').collect();
-            if parts.len() == 2 {
-                m.insert(parts[0].to_string(), parts[1].to_string());
-            } else {
-                return Err(GuError::Message(format!(
-                    "Invalid column rename argument: {}. Must be in the format oldcolumn=newcolumn",
-                    val
-                )));
-            }
-        }
-        Some(m)
-    } else {
-        None
-    };
-
-    Ok((file_rdr, file_wtr, new_header, new_columns, sep))
+enum NewHeader {
+    /// Replace the whole header
+    List(csv::StringRecord),
+    /// Rename the given columns, as (old name, new name) pairs
+    Rename(Vec<(String, String)>),
 }
 
-fn process_file<R, W>(
-    rdr: R,
-    wtr: W,
-    new_header: Option<csv::StringRecord>,
-    new_columns: Option<HashMap<String, String>>,
-    sep: char,
-) -> Result<()>
+type ParsedArgs = (gwas_utils::Reader, gwas_utils::Writer, NewHeader, char);
+
+fn handle_commandline_args(args: Args) -> Result<ParsedArgs> {
+    let (file_rdr, sep) = open_input(&args.input, &args.delim)?;
+    let file_wtr = open_writer(&args.output)?;
+    let new_header = parse_new_header(args.list, args.columns)?;
+    Ok((file_rdr, file_wtr, new_header, sep))
+}
+
+fn parse_new_header(list: Vec<String>, columns: Vec<String>) -> Result<NewHeader> {
+    if !list.is_empty() {
+        Ok(NewHeader::List(csv::StringRecord::from(list)))
+    } else if !columns.is_empty() {
+        let mut renames: Vec<(String, String)> = Vec::new();
+        for arg in columns {
+            let (old, new) = parse_rename(&arg)?;
+            if renames.iter().any(|(o, _)| *o == old) {
+                return Err(GuError::Message(format!(
+                    "Column \"{}\" is renamed more than once",
+                    old
+                )));
+            }
+            renames.push((old, new));
+        }
+        Ok(NewHeader::Rename(renames))
+    } else {
+        Err(GuError::Message(
+            "Must specify either a new header (-l) or columns to rename (-c)".to_string(),
+        ))
+    }
+}
+
+/// Parse "oldcolumn=newcolumn". Whitespace around either name is ignored.
+/// The new name may itself contain "=", but the old name can't.
+fn parse_rename(arg: &str) -> Result<(String, String)> {
+    let invalid = || {
+        GuError::Message(format!(
+            "Invalid column rename argument: {}. Must be in the format oldcolumn=newcolumn",
+            arg
+        ))
+    };
+    let (old, new) = arg.split_once('=').ok_or_else(invalid)?;
+    let (old, new) = (old.trim(), new.trim());
+    if old.is_empty() || new.is_empty() {
+        return Err(invalid());
+    }
+    Ok((old.to_string(), new.to_string()))
+}
+
+fn process_file<R, W>(rdr: R, wtr: W, new_header: NewHeader, sep: char) -> Result<()>
 where
     R: io::Read,
     W: io::Write,
@@ -106,28 +109,27 @@ where
     let mut csv_wtr = get_csv_writer(wtr, sep);
     let header = csv_rdr.headers()?.clone();
 
-    if let Some(new_header) = new_header {
-        if new_header.len() != header.len() {
-            return Err(GuError::Message(format!(
-                "New header has {} columns, but input file has {} columns",
-                new_header.len(),
-                header.len()
-            )));
-        }
-        csv_wtr.write_record(&new_header)?;
-    } else if let Some(new_columns) = new_columns {
-        let mut new_header: Vec<String> = header.iter().map(|h| h.to_string()).collect();
-        for (old_col, new_col) in new_columns {
-            if let Some(idx) = header.iter().position(|h| h == old_col) {
-                new_header[idx] = new_col;
-            } else {
-                return Err(column_not_found_error(&old_col));
+    match new_header {
+        NewHeader::List(new_header) => {
+            if new_header.len() != header.len() {
+                return Err(GuError::Message(format!(
+                    "New header has {} columns, but input file has {} columns",
+                    new_header.len(),
+                    header.len()
+                )));
             }
+            csv_wtr.write_record(&new_header)?;
         }
-        csv_wtr.write_record(&new_header)?;
-    } else {
-        // No reheadering requested, just write the original header
-        csv_wtr.write_record(&header)?;
+        NewHeader::Rename(renames) => {
+            let mut new_header: Vec<String> = header.iter().map(|h| h.to_string()).collect();
+            for (old_col, new_col) in renames {
+                match header.iter().position(|h| h == old_col) {
+                    Some(idx) => new_header[idx] = new_col,
+                    None => return Err(column_not_found_error(&old_col)),
+                }
+            }
+            csv_wtr.write_record(&new_header)?;
+        }
     }
 
     for result in csv_rdr.records() {
@@ -185,11 +187,10 @@ mod tests {
         process_file(
             std::io::Cursor::new(INPUT.as_bytes()),
             &mut wtr,
-            Some(csv::StringRecord::from(vec![
+            NewHeader::List(csv::StringRecord::from(vec![
                 "CHR", "POS", "ID", "ALLELE0", "ALLELE1", "A1FREQ", "INFO", "N", "TEST", "BETA",
                 "SE", "CHISQ", "LOG10P", "EXTRA",
             ])),
-            None,
             ' ',
         )
         .unwrap();
@@ -206,15 +207,10 @@ mod tests {
         process_file(
             std::io::Cursor::new(INPUT.as_bytes()),
             &mut wtr,
-            None,
-            Some(
-                vec![
-                    ("CHROM".to_string(), "CHR".to_string()),
-                    ("GENPOS".to_string(), "POS".to_string()),
-                ]
-                .into_iter()
-                .collect(),
-            ),
+            NewHeader::Rename(vec![
+                ("CHROM".to_string(), "CHR".to_string()),
+                ("GENPOS".to_string(), "POS".to_string()),
+            ]),
             ' ',
         )
         .unwrap();
@@ -222,5 +218,53 @@ mod tests {
         let result = String::from_utf8(wtr.into_inner()).unwrap();
 
         assert_eq!(result, DESIRED_RESULT);
+    }
+
+    #[test]
+    fn test_parse_rename_trims_whitespace() {
+        assert_eq!(
+            parse_rename("OLD=NEW").unwrap(),
+            ("OLD".to_string(), "NEW".to_string())
+        );
+        assert_eq!(
+            parse_rename("  OLD =  NEW ").unwrap(),
+            ("OLD".to_string(), "NEW".to_string())
+        );
+        // Only the first "=" separates the names, so a new name can contain one
+        assert_eq!(
+            parse_rename("OLD=a=b").unwrap(),
+            ("OLD".to_string(), "a=b".to_string())
+        );
+    }
+
+    #[test]
+    fn test_parse_rename_rejects_malformed_arguments() {
+        for bad in ["OLD", "OLD:NEW", "=NEW", "OLD=", " = ", ""] {
+            assert!(parse_rename(bad).is_err(), "{bad:?} should be rejected");
+        }
+    }
+
+    #[test]
+    fn test_parse_new_header_requires_an_operation() {
+        assert!(parse_new_header(vec![], vec![]).is_err());
+        assert!(parse_new_header(vec!["A".into()], vec![]).is_ok());
+        assert!(parse_new_header(vec![], vec!["A=B".into()]).is_ok());
+    }
+
+    #[test]
+    fn test_parse_new_header_rejects_a_column_renamed_twice() {
+        let err = parse_new_header(vec![], vec!["A=B".into(), "A=C".into()]).err();
+        assert!(err.unwrap().to_string().contains("more than once"));
+    }
+
+    #[test]
+    fn test_reheader_c_unknown_column_is_an_error() {
+        let result = process_file(
+            std::io::Cursor::new(INPUT.as_bytes()),
+            Cursor::new(Vec::new()),
+            NewHeader::Rename(vec![("NOPE".to_string(), "X".to_string())]),
+            ' ',
+        );
+        assert!(result.is_err());
     }
 }

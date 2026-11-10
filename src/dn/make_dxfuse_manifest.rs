@@ -3,7 +3,7 @@ use regex::Regex;
 use serde_json::json;
 use std::io;
 
-use gwas_utils::{Result, open_writer};
+use gwas_utils::{GuError, Result, open_writer};
 
 pub(crate) const ABOUT: &str =
     "Convert a list of dnanexus file identifiers into a dxfuse manifest file";
@@ -16,7 +16,7 @@ pub(crate) fn get_usage() -> String {
 #[derive(Parser, Debug)]
 pub(crate) struct Args {
     /// A list of DNAnexus file identifiers (file-xxxx, {$dnanexus_link: file-yyyy}, etc.) to include in the manifest
-    #[arg(short, long, num_args = 1..)]
+    #[arg(short, long, num_args = 1.., required = true)]
     fileids: Vec<String>,
 
     /// The ID of the DNAnexus project containing the files
@@ -47,10 +47,21 @@ where
 {
     let re = Regex::new(r"file-[a-zA-Z0-9]{24}")?;
 
-    let file_ids = raw_strings
-        .iter()
-        .filter_map(|s| re.find(s).map(|m| m.as_str()))
-        .collect::<Vec<_>>();
+    let mut file_ids = Vec::new();
+    for raw in &raw_strings {
+        match re.find(raw) {
+            Some(m) => file_ids.push(m.as_str()),
+            None => eprintln!(
+                "Warning: no DNAnexus file ID found in \"{}\"; skipping it",
+                raw
+            ),
+        }
+    }
+    if file_ids.is_empty() {
+        return Err(GuError::Message(
+            "None of the inputs contain a DNAnexus file ID (file-xxxx)".to_string(),
+        ));
+    }
 
     let json = json!({
         "Files": file_ids.iter().map(|file_id| {
@@ -118,5 +129,33 @@ mod tests {
         )
         .unwrap();
         assert_eq!(result, desired_result_json);
+    }
+
+    #[test]
+    fn test_no_file_ids_is_an_error_and_writes_nothing() {
+        let mut wtr = std::io::Cursor::new(Vec::new());
+        let result = process_strings(
+            vec!["not-an-id".to_string(), "".to_string()],
+            "project-xxxx".to_string(),
+            &mut wtr,
+        );
+        assert!(result.is_err());
+        assert!(wtr.into_inner().is_empty());
+    }
+
+    #[test]
+    fn test_inputs_without_a_file_id_are_skipped_if_others_have_one() {
+        let mut wtr = std::io::Cursor::new(Vec::new());
+        process_strings(
+            vec![
+                "junk".to_string(),
+                "file-FxY5660JkF6BB3Jq9680pjq5".to_string(),
+            ],
+            "project-xxxx".to_string(),
+            &mut wtr,
+        )
+        .unwrap();
+        let result: serde_json::Value = serde_json::from_slice(&wtr.into_inner()).unwrap();
+        assert_eq!(result["Files"].as_array().unwrap().len(), 1);
     }
 }

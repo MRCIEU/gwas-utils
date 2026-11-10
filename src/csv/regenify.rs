@@ -1,9 +1,9 @@
 use clap::Parser;
 use std::io;
 
-use gwas_utils::{Result, open_reader, open_writer};
+use gwas_utils::{Result, open_writer};
 
-use crate::csv::lib::{get_csv_reader, get_csv_writer, get_delimeter_from_cli_argument};
+use crate::csv::lib::{get_csv_reader, get_csv_writer, open_input};
 
 pub(crate) const ABOUT: &str = "Write a tab separated file with missing data replaced by \"NA\"s";
 pub(crate) const USAGE: &str = "gu csv regenify infile.csv[.gz] [-o outfile.tsv[.gz]]";
@@ -14,7 +14,7 @@ pub(crate) fn get_usage() -> String {
 
 #[derive(Parser, Debug)]
 pub(crate) struct Args {
-    /// CSV file to process (can be gzipped if filename ends with .gz)
+    /// CSV file to process (gzipped input is detected automatically)
     #[arg(default_value = "stdin")]
     input: String,
 
@@ -39,12 +39,8 @@ pub(crate) fn run(args: Args) -> Result<()> {
 fn handle_commandline_args(
     args: Args,
 ) -> Result<(gwas_utils::Reader, gwas_utils::Writer, bool, char)> {
-    let mut file_rdr = open_reader(&args.input)?;
+    let (file_rdr, sep) = open_input(&args.input, &args.delim)?;
     let file_wtr = open_writer(&args.output)?;
-    let sep = match args.delim.as_str() {
-        "auto" => file_rdr.sniff_csv_delimiter()?,
-        _ => get_delimeter_from_cli_argument(&args.delim)?,
-    };
     Ok((file_rdr, file_wtr, args.no_rep_neg_one, sep))
 }
 

@@ -2,11 +2,11 @@ use clap::Parser;
 use statrs::distribution::{ContinuousCDF, Normal};
 use std::io::{self, Write};
 
-use gwas_utils::{GuError, Result, open_reader, open_writer};
+use gwas_utils::{GuError, Result, open_writer};
 
 use crate::csv::lib::{
-    get_column_idx_from_name, get_column_value_from_idx, get_csv_reader,
-    get_delimeter_from_cli_argument, get_p_from_log10_p,
+    get_column_idx_from_name, get_column_value_from_idx, get_csv_reader, get_p_from_log10_p,
+    open_input, parse_optional_f64, with_value_context,
 };
 
 pub(crate) const ABOUT: &str =
@@ -22,7 +22,7 @@ const CHISQ_1DF_MEDIAN: f64 = 0.454_936_423_119_572_8;
 
 #[derive(Parser, Debug)]
 pub(crate) struct Args {
-    /// CSV file to process (can be gzipped if filename ends with .gz)
+    /// CSV file to process (gzipped input is detected automatically)
     #[arg(default_value = "stdin")]
     input: String,
 
@@ -66,12 +66,8 @@ fn handle_commandline_args(
     String,
     PColumnType,
 )> {
-    let mut file_rdr = open_reader(&args.input)?;
+    let (file_rdr, sep) = open_input(&args.input, &args.delim)?;
     let file_wtr = open_writer(&args.output)?;
-    let sep = match args.delim.as_str() {
-        "auto" => file_rdr.sniff_csv_delimiter()?,
-        _ => get_delimeter_from_cli_argument(&args.delim)?,
-    };
     let (p_col, p_col_type) = match args.log10p {
         Some(log10p_col) => (log10p_col, PColumnType::Log10P),
         None => (args.p, PColumnType::P),
@@ -91,7 +87,7 @@ where
     for result in csv_rdr.records() {
         let record = result?;
         let p_val = get_column_value_from_idx(&record, p_col_idx)?;
-        if let Some(p) = get_p(p_val, p_col_type)? {
+        if let Some(p) = with_value_context(get_p(p_val, p_col_type), &p_col, &record)? {
             chisqs.push(get_chisq_1df_from_p(p));
         }
     }
@@ -108,9 +104,9 @@ where
 
 // Missing/non-numeric values (e.g. "NA") are skipped
 fn get_p(p_val: &str, p_col_type: PColumnType) -> Result<Option<f64>> {
-    let val = match p_val.parse::<f64>() {
-        Ok(val) if !val.is_nan() => val,
-        _ => return Ok(None),
+    let val = match parse_optional_f64(p_val)? {
+        Some(val) => val,
+        None => return Ok(None),
     };
     let p = match p_col_type {
         PColumnType::P => val,
@@ -196,6 +192,8 @@ mod tests {
         assert_close(get_p("-2", PColumnType::Log10P).unwrap().unwrap(), 0.01);
         assert_eq!(get_p("NA", PColumnType::P).unwrap(), None);
         assert!(get_p("1.5", PColumnType::P).is_err());
+        assert_eq!(get_p("", PColumnType::P).unwrap(), None);
+        assert!(get_p("foo", PColumnType::P).is_err());
     }
 
     #[test]
