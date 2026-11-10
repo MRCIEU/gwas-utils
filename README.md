@@ -49,7 +49,7 @@ There is a Dockerfile in this repository which you can use to make a distroless 
 
 ### C[?]SV file handling
 
-* By default, `gu csv <SUBCOMMAND>` will try to automatically detect the delimeter in the file it's reading. If that fails for some reason, you can specify it manually (usually using the `-d` flag). Automatically detected delimeters must be one of: `[',', '\t', ';', '|', ' ']`.
+* By default, `gu csv <SUBCOMMAND>` will try to automatically detect the delimiter in the file it's reading. If that fails for some reason, you can specify it manually (usually using the `-d` flag). Automatically detected delimiters must be one of: `[',', '\t', ';', '|', ' ']`.
 
 * `gu csv <SUBCOMMAND>`s default to reading from `stdin` and writing to `stdout`, so you can chain multiple commands together to achieve what you want:
 
@@ -93,7 +93,7 @@ Commands:
   addp      Add a P column to a CSV file based on a (minus) LOG10P column
   addz      Add a Z-score column to a CSV file based on a beta column and a standard error column
   cat       Concatenate multiple CSV files into a single file
-  delim     Change the delimeter of a CSV file
+  delim     Change the delimiter of a CSV file
   filter    Filter rows from a CSV file based on column-specific expressions
   merge     Merge two CSV files based on a shared column
   reheader  Reheader a CSV file
@@ -156,7 +156,7 @@ Options:
 
 ```
 ❯ gu csv delim -h
-Change the delimeter of a CSV file
+Change the delimiter of a CSV file
 
 Usage: gu csv delim infile.csv[.gz] -d"\t" [-o outfile.tsv[.gz]]
 

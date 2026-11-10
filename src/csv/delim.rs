@@ -3,9 +3,9 @@ use std::io;
 
 use gwas_utils::{Result, open_reader, open_writer};
 
-use crate::csv::lib::{get_csv_reader, get_csv_writer, get_delimeter_from_cli_argument};
+use crate::csv::lib::{get_csv_reader, get_csv_writer, get_delimiter_from_cli_argument};
 
-pub(crate) const ABOUT: &str = "Change the delimeter of a CSV file";
+pub(crate) const ABOUT: &str = "Change the delimiter of a CSV file";
 pub(crate) const USAGE: &str = "gu csv delim infile.csv[.gz] -d\"\\t\" [-o outfile.tsv[.gz]]";
 
 pub(crate) fn get_usage() -> String {
@@ -43,9 +43,9 @@ fn handle_commandline_args(
     let file_wtr = open_writer(&args.output)?;
     let sep_in = match args.din.as_str() {
         "auto" => file_rdr.sniff_csv_delimiter()?,
-        _ => get_delimeter_from_cli_argument(&args.din)?,
+        _ => get_delimiter_from_cli_argument(&args.din)?,
     };
-    let sep_out = get_delimeter_from_cli_argument(&args.delim)?;
+    let sep_out = get_delimiter_from_cli_argument(&args.delim)?;
     Ok((file_rdr, file_wtr, sep_in, sep_out))
 }
 

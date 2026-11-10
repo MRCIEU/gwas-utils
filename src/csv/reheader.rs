@@ -4,7 +4,7 @@ use std::{collections::HashMap, io};
 use gwas_utils::{GuError, Result, open_reader, open_writer};
 
 use crate::csv::lib::{
-    column_not_found_error, get_csv_reader, get_csv_writer, get_delimeter_from_cli_argument,
+    column_not_found_error, get_csv_reader, get_csv_writer, get_delimiter_from_cli_argument,
 };
 
 pub(crate) const ABOUT: &str = "Reheader a CSV file";
@@ -58,7 +58,7 @@ fn handle_commandline_args(
     let file_wtr = open_writer(&args.output)?;
     let sep = match args.delim.as_str() {
         "auto" => file_rdr.sniff_csv_delimiter()?,
-        _ => get_delimeter_from_cli_argument(&args.delim)?,
+        _ => get_delimiter_from_cli_argument(&args.delim)?,
     };
     let new_header = if !args.list.is_empty() {
         let mut sr = csv::StringRecord::new();

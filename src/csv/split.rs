@@ -4,7 +4,7 @@ use std::io;
 
 use gwas_utils::{GuError, Result, open_reader, open_writer};
 
-use crate::csv::lib::{get_column_idx_from_name, get_csv_reader, get_delimeter_from_cli_argument};
+use crate::csv::lib::{get_column_idx_from_name, get_csv_reader, get_delimiter_from_cli_argument};
 
 pub(crate) const ABOUT: &str =
     "Split a CSV file into multiple files based on unique values in a specified categorical column";
@@ -43,7 +43,7 @@ fn handle_commandline_args(args: Args) -> Result<(gwas_utils::Reader, String, ch
     let mut file_rdr = open_reader(&args.input)?;
     let sep = match args.delim.as_str() {
         "auto" => file_rdr.sniff_csv_delimiter()?,
-        _ => get_delimeter_from_cli_argument(&args.delim)?,
+        _ => get_delimiter_from_cli_argument(&args.delim)?,
     };
     let suffix = match args.suffix.is_empty() {
         true => "".to_string(),

@@ -1,6 +1,6 @@
 use gwas_utils::{GuError, Result};
 
-pub fn get_delimeter_from_cli_argument(sep: &str) -> Result<char> {
+pub fn get_delimiter_from_cli_argument(sep: &str) -> Result<char> {
     let single_ascii_err = "Delimiter must be a single ASCII character".to_string();
     let c = match sep {
         "\\t" => '\t',
@@ -125,12 +125,12 @@ mod tests {
 
     #[test]
     fn test_get_delimiter() {
-        assert_eq!(get_delimeter_from_cli_argument("\t").unwrap(), '\t');
-        assert_eq!(get_delimeter_from_cli_argument("\\t").unwrap(), '\t');
-        assert_eq!(get_delimeter_from_cli_argument(r#"	"#).unwrap(), '\t');
-        assert_eq!(get_delimeter_from_cli_argument(" ").unwrap(), ' ');
-        assert_eq!(get_delimeter_from_cli_argument(",").unwrap(), ',');
-        assert!(get_delimeter_from_cli_argument("::").is_err());
+        assert_eq!(get_delimiter_from_cli_argument("\t").unwrap(), '\t');
+        assert_eq!(get_delimiter_from_cli_argument("\\t").unwrap(), '\t');
+        assert_eq!(get_delimiter_from_cli_argument(r#"	"#).unwrap(), '\t');
+        assert_eq!(get_delimiter_from_cli_argument(" ").unwrap(), ' ');
+        assert_eq!(get_delimiter_from_cli_argument(",").unwrap(), ',');
+        assert!(get_delimiter_from_cli_argument("::").is_err());
     }
 
     #[test]

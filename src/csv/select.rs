@@ -5,7 +5,7 @@ use gwas_utils::{Result, open_reader, open_writer};
 
 use crate::csv::lib::{
     column_idx_out_of_bounds_error, get_column_idx_from_name, get_column_indices_from_regexes,
-    get_csv_reader, get_csv_writer, get_delimeter_from_cli_argument,
+    get_csv_reader, get_csv_writer, get_delimiter_from_cli_argument,
 };
 
 pub(crate) const ABOUT: &str = "Select specific columns from a CSV file";
@@ -66,7 +66,7 @@ fn handle_commandline_args(
     let file_wtr = open_writer(&args.output)?;
     let sep = match args.delim.as_str() {
         "auto" => file_rdr.sniff_csv_delimiter()?,
-        _ => get_delimeter_from_cli_argument(&args.delim)?,
+        _ => get_delimiter_from_cli_argument(&args.delim)?,
     };
     let column_selection = if !args.columns.is_empty() {
         ColumnSelection::Names(args.columns.clone())

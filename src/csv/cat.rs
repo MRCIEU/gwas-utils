@@ -4,7 +4,7 @@ use std::io;
 
 use gwas_utils::{GuError, Result, open_reader, open_writer};
 
-use crate::csv::lib::{get_csv_reader, get_csv_writer, get_delimeter_from_cli_argument};
+use crate::csv::lib::{get_csv_reader, get_csv_writer, get_delimiter_from_cli_argument};
 
 pub(crate) const ABOUT: &str = "Concatenate multiple CSV files into a single file";
 pub(crate) const USAGE: &str =
@@ -60,7 +60,7 @@ fn handle_commandline_args(
                 ));
             }
         }
-        _ => get_delimeter_from_cli_argument(&args.delim)?,
+        _ => get_delimiter_from_cli_argument(&args.delim)?,
     };
     Ok((readers, file_wtr, sep))
 }

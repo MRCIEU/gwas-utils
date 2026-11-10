@@ -5,7 +5,7 @@ use gwas_utils::{GuError, Result, open_reader, open_writer};
 
 use crate::csv::lib::{
     get_column_idx_from_name, get_column_value_from_idx, get_csv_reader, get_csv_writer,
-    get_delimeter_from_cli_argument, is_missing, with_value_context,
+    get_delimiter_from_cli_argument, is_missing, with_value_context,
 };
 
 pub(crate) const ABOUT: &str = "Filter rows from a CSV file based on column-specific expressions";
@@ -150,7 +150,7 @@ fn handle_commandline_args(
     let file_wtr = open_writer(&args.output)?;
     let sep = match args.delim.as_str() {
         "auto" => file_rdr.sniff_csv_delimiter()?,
-        _ => get_delimeter_from_cli_argument(&args.delim)?,
+        _ => get_delimiter_from_cli_argument(&args.delim)?,
     };
     let filters = if !args.expression.is_empty() {
         RowFilter::Expressions(parse_expressions(args.expression)?)
