@@ -496,6 +496,49 @@ fn select_by_regex_index_and_no_reorder() {
     assert!(!out.status.success());
 }
 
+#[test]
+fn select_invert_keeps_all_columns_except_the_selected_ones() {
+    let dir = TempDir::new();
+    let input = dir.write("data.csv", SUMSTATS);
+
+    // By name, by index and by regex, always in file order
+    let out = gu(&[&"csv", &"select", &input, &"-v", &"-c", &"SE", &"P"]);
+    assert!(out.status.success(), "{}", stderr(&out));
+    assert_eq!(stdout(&out), "ID,BETA\na,1\nb,NA\nc,2\n");
+
+    let out = gu(&[&"csv", &"select", &input, &"--invert", &"-i", &"1", &"4"]);
+    assert!(out.status.success(), "{}", stderr(&out));
+    assert_eq!(stdout(&out), "P,BETA\n0.01,1\nNA,NA\n0.5,2\n");
+
+    let out = gu(&[&"csv", &"select", &input, &"-v", &"-r", &"^[PBS]"]);
+    assert!(out.status.success(), "{}", stderr(&out));
+    assert_eq!(stdout(&out), "ID\na\nb\nc\n");
+}
+
+#[test]
+fn select_invert_errors_instead_of_silently_doing_nothing_useful() {
+    let dir = TempDir::new();
+    let input = dir.write("data.csv", SUMSTATS);
+
+    // Excluding every column, a misspelt column, and an unmatched regex
+    for args in [
+        vec!["-v", "-c", "ID", "P", "BETA", "SE"],
+        vec!["-v", "-c", "TYPO"],
+        vec!["-v", "-r", "^TYPO$"],
+        vec!["-v", "-i", "99"],
+        vec!["-v", "-c", "P", "--no-reorder"],
+        vec!["-v"],
+    ] {
+        let mut full: Vec<&dyn AsRef<std::ffi::OsStr>> = vec![&"csv", &"select", &input];
+        for a in &args {
+            full.push(a);
+        }
+        let out = gu(&full);
+        assert!(!out.status.success(), "{args:?} should fail");
+        assert_eq!(stdout(&out), "", "{args:?} should write nothing");
+    }
+}
+
 // --- filter ---
 
 #[test]

@@ -241,6 +241,7 @@ Usage:
     gu csv select infile.csv[.gz] -c <column1 column2 ...> [-o outfile.csv[.gz]]
     gu csv select infile.csv[.gz] -i <index1 index2 ...> [-o outfile.csv[.gz]]
     gu csv select infile.csv[.gz] -r <REGEX1 REGEX2 ...> [-o outfile.csv[.gz]]
+    gu csv select infile.csv[.gz] -v -c|-i|-r <...> [-o outfile.csv[.gz]]  (all columns EXCEPT those)
 
 Arguments:
   [INPUT]  CSV file to process (can be gzipped if filename ends with .gz) [default: stdin]
@@ -251,6 +252,7 @@ Options:
   -r, --regexes <REGEXES>...  Regexes to select column names against
   -d, --delim <DELIM>         Delimiter for CSV file reading and writing [default: auto]
       --no-reorder            Don't reorder selected columns
+  -v, --invert                Invert the selection, i.e. keep every column EXCEPT the ones selected by -c, -i or -r (in their original order)
   -o, --output <OUTPUT>       CSV file to write (will be gzipped if filename ends with .gz) [default: stdout]
   -h, --help                  Print help
 ```
