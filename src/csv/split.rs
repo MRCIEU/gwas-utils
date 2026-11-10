@@ -1,6 +1,7 @@
 use clap::Parser;
 use std::collections::HashMap;
 use std::io;
+use std::path::Path;
 
 use gwas_utils::{GuError, Result, open_reader, open_writer};
 
@@ -35,7 +36,7 @@ pub(crate) struct Args {
 
 pub(crate) fn run(args: Args) -> Result<()> {
     let (file_rdr, column_to_split_on, sep, suffix) = handle_commandline_args(args)?;
-    process_file(file_rdr, column_to_split_on, sep, suffix)?;
+    process_file(file_rdr, column_to_split_on, sep, suffix, Path::new("."))?;
     Ok(())
 }
 
@@ -52,7 +53,14 @@ fn handle_commandline_args(args: Args) -> Result<(gwas_utils::Reader, String, ch
     Ok((file_rdr, args.column, sep, suffix))
 }
 
-fn process_file<R>(rdr: R, column_to_split_on: String, sep: char, suffix: String) -> Result<()>
+/// Write one file per unique value of the split column into `out_dir`
+fn process_file<R>(
+    rdr: R,
+    column_to_split_on: String,
+    sep: char,
+    suffix: String,
+    out_dir: &Path,
+) -> Result<()>
 where
     R: io::Read,
 {
@@ -71,7 +79,10 @@ where
                 )))?;
                 csv_wtr.write_record(&record)?;
             } else {
-                let file_handle = format!("{}.{}{}", column_to_split_on, value, suffix);
+                let file_handle = out_dir
+                    .join(format!("{}.{}{}", column_to_split_on, value, suffix))
+                    .to_string_lossy()
+                    .into_owned();
                 let mut csv_wtr = csv::WriterBuilder::new()
                     .delimiter(sep as u8)
                     .from_writer(open_writer(&file_handle)?);
@@ -112,11 +123,15 @@ mod tests {
 2 5 9 2 1 0.194332 1 494 ADD 0.283254 0.241072 1.38057 0.619781 NA
 "#;
 
+        let dir = std::env::temp_dir().join(format!("gu-split-test-{}", std::process::id()));
+        fs::create_dir_all(&dir).unwrap();
+
         process_file(
             std::io::Cursor::new(input.as_bytes()),
             "CHROM".to_string(),
             ' ',
             ".csv".to_string(),
+            &dir,
         )
         .unwrap();
 
@@ -140,11 +155,10 @@ mod tests {
 "#
             .to_string();
 
-        let result_1 = fs::read_to_string("CHROM.1.csv").unwrap();
-        let result_2 = fs::read_to_string("CHROM.2.csv").unwrap();
+        let result_1 = fs::read_to_string(dir.join("CHROM.1.csv")).unwrap();
+        let result_2 = fs::read_to_string(dir.join("CHROM.2.csv")).unwrap();
+        fs::remove_dir_all(&dir).unwrap();
         assert_eq!(result_1, desired_result_1);
         assert_eq!(result_2, desired_result_2);
-        fs::remove_file("CHROM.1.csv").unwrap();
-        fs::remove_file("CHROM.2.csv").unwrap();
     }
 }
