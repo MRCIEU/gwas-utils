@@ -16,8 +16,26 @@ jobs:
 
     steps:
     - uses: actions/checkout@v4
+    - name: Check formatting
+      run: cargo fmt --check
+    - name: Lint
+      run: cargo clippy --all-targets -- -D warnings
     - name: Build
       run: cargo build --verbose
     - name: Run tests
       run: cargo test --verbose
 
+  msrv:
+    # Check that the crate builds and passes its tests on the minimum supported Rust version
+    # declared in Cargo.toml (rust-version)
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+    - name: Install minimum supported Rust version
+      run: |
+        MSRV=$(grep '^rust-version' Cargo.toml | cut -d'"' -f2)
+        echo "MSRV=$MSRV" >> "$GITHUB_ENV"
+        rustup toolchain install "$MSRV" --profile minimal
+    - name: Run tests
+      run: cargo +"$MSRV" test --locked

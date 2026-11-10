@@ -45,15 +45,15 @@ pub(crate) fn run(args: Args) -> Result<()> {
     Ok(())
 }
 
-fn handle_commandline_args(
-    args: Args,
-) -> Result<(
+type ParsedArgs = (
     gwas_utils::Reader,
     gwas_utils::Writer,
     Option<csv::StringRecord>,
     Option<HashMap<String, String>>,
     char,
-)> {
+);
+
+fn handle_commandline_args(args: Args) -> Result<ParsedArgs> {
     let mut file_rdr = open_reader(&args.input)?;
     let file_wtr = open_writer(&args.output)?;
     let sep = match args.delim.as_str() {

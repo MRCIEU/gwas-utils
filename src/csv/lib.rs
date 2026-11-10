@@ -113,6 +113,8 @@ pub(crate) fn with_value_context<T>(
 }
 
 pub(crate) fn get_p_from_log10_p(log10_p: f64) -> f64 {
+    // The `* -1.0` is deliberate: it's more explicit than a bare negation. Don't "simplify" it.
+    #[allow(clippy::neg_multiply)]
     let temp = log10_p.abs() * -1.0; // Convert to negative number regardless of input sign (these are p-values so they must be <= 1)
     let p = f64::powf(10.0, temp);
     if p == 0.0 { f64::MIN_POSITIVE } else { p }

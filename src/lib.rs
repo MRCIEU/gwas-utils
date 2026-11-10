@@ -194,6 +194,12 @@ fn read_up_to<R: Read>(rdr: &mut R, buf: &mut [u8]) -> io::Result<usize> {
     Ok(total)
 }
 
+/// Number of threads used to compress gzip output: the available cores, capped at 8
+fn gzip_threads() -> usize {
+    const MAX_GZIP_THREADS: usize = 8;
+    std::thread::available_parallelism().map_or(1, |n| n.get().min(MAX_GZIP_THREADS))
+}
+
 enum OpenFile {
     Plain(File),
     Gzp(Box<dyn ZWriter<File>>),
@@ -212,7 +218,11 @@ impl LazyFile {
         if self.file.is_none() {
             let f = File::create(&self.path)?;
             self.file = Some(if self.path.ends_with(".gz") {
-                OpenFile::Gzp(ZBuilder::<Gzip, _>::new().num_threads(8).from_writer(f))
+                OpenFile::Gzp(
+                    ZBuilder::<Gzip, _>::new()
+                        .num_threads(gzip_threads())
+                        .from_writer(f),
+                )
             } else {
                 OpenFile::Plain(f)
             });
