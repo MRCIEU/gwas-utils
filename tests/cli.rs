@@ -802,3 +802,69 @@ fn broken_pipe_exits_quietly() {
     );
     assert_eq!(stderr(&out), "");
 }
+
+// --- stdin ---
+
+/// Run `gu` with `args`, writing each chunk of `chunks` to its stdin with a pause in between
+fn gu_stdin_chunks(args: &[&str], chunks: &[&[u8]]) -> Output {
+    let mut child = Command::new(env!("CARGO_BIN_EXE_gu"))
+        .args(args)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .unwrap();
+    let mut stdin = child.stdin.take().unwrap();
+    for (i, chunk) in chunks.iter().enumerate() {
+        if i > 0 {
+            std::thread::sleep(std::time::Duration::from_millis(200));
+        }
+        stdin.write_all(chunk).unwrap();
+        stdin.flush().unwrap();
+    }
+    drop(stdin);
+    child.wait_with_output().unwrap()
+}
+
+#[test]
+fn stdin_gzip_is_decompressed() {
+    let out = gu_stdin_chunks(
+        &["csv", "select", "-c", "ID"],
+        &[&gzip("ID\tP\na\t0.1\nb\t0.2\n")],
+    );
+    assert!(out.status.success(), "{}", stderr(&out));
+    assert_eq!(stdout(&out), "ID\na\nb\n");
+}
+
+#[test]
+fn stdin_multi_member_gzip_is_decompressed() {
+    let mut bytes = gzip("x,y\n1,1\n");
+    bytes.extend(gzip("2,2\n"));
+    let out = gu_stdin_chunks(&["csv", "select", "-c", "x"], &[&bytes]);
+    assert!(out.status.success(), "{}", stderr(&out));
+    assert_eq!(stdout(&out), "x\n1\n2\n");
+}
+
+#[test]
+fn stdin_arriving_in_small_slow_chunks_is_still_sniffed_correctly() {
+    // The first chunk contains no delimiter at all, so sniffing must wait for more input
+    let out = gu_stdin_chunks(
+        &["csv", "select", "-c", "P"],
+        &[b"ID", b"\tP\na\t1\n", b"b\t2\n"],
+    );
+    assert!(out.status.success(), "{}", stderr(&out));
+    assert_eq!(stdout(&out), "P\n1\n2\n");
+}
+
+#[test]
+fn tsv_with_commas_in_a_text_column_is_read_as_tsv() {
+    let dir = TempDir::new();
+    let input = dir.write(
+        "notes.tsv",
+        "ID\tNOTE\tV\na\tone, two, three, four, five, six, seven\t1\nb\tfive, six\t2\nc\tsix, seven, eight, nine, ten\t3\n",
+    );
+
+    let out = gu(&[&"csv", &"select", &input, &"-c", &"ID", &"V"]);
+    assert!(out.status.success(), "{}", stderr(&out));
+    assert_eq!(stdout(&out), "ID\tV\na\t1\nb\t2\nc\t3\n");
+}

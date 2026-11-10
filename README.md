@@ -49,7 +49,7 @@ There is a Dockerfile in this repository which you can use to make a distroless 
 
 ### C[?]SV file handling
 
-* By default, `gu csv <SUBCOMMAND>` will try to automatically detect the delimiter in the file it's reading. If that fails for some reason, you can specify it manually (usually using the `-d` flag). Automatically detected delimiters must be one of: `[',', '\t', ';', '|', ' ']`.
+* By default, `gu csv <SUBCOMMAND>` will try to automatically detect the delimiter in the file it's reading. If that fails for some reason, you can specify it manually (usually using the `-d` flag). Automatically detected delimiters must be one of: `[',', '\t', ';', '|', ' ']`. A delimiter that appears the same number of times on every line (outside quotes) is preferred, so e.g. commas inside a free-text column of a TSV file won't confuse it.
 
 * `gu csv <SUBCOMMAND>`s default to reading from `stdin` and writing to `stdout`, so you can chain multiple commands together to achieve what you want:
 
@@ -59,7 +59,7 @@ There is a Dockerfile in this repository which you can use to make a distroless 
       gu csv delim -d "\t" -o chr1.signif.tsv
   ```
 
-* `gu csv <SUBCOMMAND>` will automatically read and write gzipped files if the filenames end with `.gz`:
+* `gu csv <SUBCOMMAND>` will automatically read gzipped input (detected from the file's contents, so it also works on `stdin` and with multi-member files such as bgzip output) and will write gzipped output if the output filename ends with `.gz`:
 
   ```
   gu csv regenify input.csv.gz -o output.tsv.gz
