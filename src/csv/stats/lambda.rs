@@ -22,7 +22,7 @@ const CHISQ_1DF_MEDIAN: f64 = 0.454_936_423_119_572_8;
 
 #[derive(Parser, Debug)]
 pub(crate) struct Args {
-    /// CSV file to process (can be gzipped if filename ends with .gz)
+    /// CSV file to process (gzipped input is detected automatically)
     #[arg(default_value = "stdin")]
     input: String,
 

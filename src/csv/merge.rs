@@ -62,7 +62,7 @@ impl std::str::FromStr for DuplicatePolicy {
 
 #[derive(Parser, Debug)]
 pub(crate) struct Args {
-    /// CSV files to merge (can be gzipped if filenames end with .gz). The first file is held in memory, so its keys should be unique (see --on-duplicate). The second file is streamed from disk for --join=inner and --join=right (see --strict); keys that repeat in it each produce an output row. Rows with a missing key (empty, NA) never match
+    /// CSV files to merge (gzipped input is detected automatically). The first file is held in memory, so its keys should be unique (see --on-duplicate). The second file is streamed from disk for --join=inner and --join=right (see --strict); keys that repeat in it each produce an output row. Rows with a missing key (empty, NA) never match
     #[arg(num_args = 2, required = true)]
     input: Vec<String>,
 

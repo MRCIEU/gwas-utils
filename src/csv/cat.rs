@@ -16,7 +16,7 @@ pub(crate) fn get_usage() -> String {
 
 #[derive(Parser, Debug)]
 pub(crate) struct Args {
-    /// CSV files to concatenate (can be gzipped if filenames end with .gz)
+    /// CSV files to concatenate (gzipped input is detected automatically)
     #[arg(num_args = 1.., required = true)]
     input: Vec<String>,
 

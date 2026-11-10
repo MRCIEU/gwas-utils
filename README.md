@@ -11,7 +11,7 @@ A distroless docker image with `gu` compiled on Alpine Linux using the Dockerfil
 
 ### Locally
 
-You will need to [install Rust](https://www.rust-lang.org/tools/install) first.
+You will need to [install Rust](https://www.rust-lang.org/tools/install) first (version 1.89 or newer; the minimum supported version is `rust-version` in `Cargo.toml`, and CI checks it).
 
 Then you should be able to install gwas-utils by running:
 
@@ -62,8 +62,12 @@ There is a Dockerfile in this repository which you can use to make a distroless 
 * `gu csv <SUBCOMMAND>` will automatically read gzipped input (detected from the file's contents, so it also works on `stdin` and with multi-member files such as bgzip output) and will write gzipped output if the output filename ends with `.gz`:
 
   ```
-  gu csv regenify input.csv.gz -o output.tsv.gz
+  gu csv delim input.csv.gz -d "\t" -o output.tsv.gz
   ```
+
+* Missing values: in numeric columns, empty fields and `NA`, `N/A` and `NaN` (any case) are treated as missing. `gu csv filter` treats a missing value as not satisfying `<`, `<=`, `>` or `>=`; `gu csv addz` and `gu csv addp` write `NA` when an input value is missing; `gu csv stats lambda` skips them; and `gu csv merge` never matches rows whose key is missing (they are kept in left, right and outer joins). Any other non-numeric value is an error that names the column and line.
+
+* A subcommand that is asked to do nothing (for example `gu csv select` with no columns, or `gu csv filter` with no expression) exits with an error rather than copying its input through.
 
 ## Help 
 
@@ -113,7 +117,7 @@ Add a P column to a CSV file based on a (minus) LOG10P column
 Usage: gu csv addp infile.regenie[.gz] [-o outfile.regenie[.gz]]
 
 Arguments:
-  [INPUT]  CSV file to process (can be gzipped if filename ends with .gz) [default: stdin]
+  [INPUT]  CSV file to process (gzipped input is detected automatically) [default: stdin]
 
 Options:
   -d, --delim <DELIM>    Delimiter for CSV file reading and writing [default: auto]
@@ -129,7 +133,7 @@ Add a Z-score column to a CSV file based on a beta column and a standard error c
 Usage: gu csv addz infile.regenie[.gz] [-o outfile.regenie[.gz]]
 
 Arguments:
-  [INPUT]  CSV file to process (can be gzipped if filename ends with .gz) [default: stdin]
+  [INPUT]  CSV file to process (gzipped input is detected automatically) [default: stdin]
 
 Options:
   -d, --delim <DELIM>    Delimiter for CSV file reading and writing [default: auto]
@@ -146,7 +150,7 @@ Concatenate multiple CSV files into a single file
 Usage: gu csv cat infile1.csv[.gz] infile2.csv[.gz] ... [-o outfile.csv[.gz]]
 
 Arguments:
-  <INPUT>...  CSV files to concatenate (can be gzipped if filenames end with .gz)
+  <INPUT>...  CSV files to concatenate (gzipped input is detected automatically)
 
 Options:
   -d, --delim <DELIM>    Delimiter for CSV file reading and writing [default: auto]
@@ -161,7 +165,7 @@ Change the delimiter of a CSV file
 Usage: gu csv delim infile.csv[.gz] -d"\t" [-o outfile.tsv[.gz]]
 
 Arguments:
-  [INPUT]  CSV file to process (can be gzipped if filename ends with .gz) [default: stdin]
+  [INPUT]  CSV file to process (gzipped input is detected automatically) [default: stdin]
 
 Options:
       --din <DIN>        Delimiter for INPUT CSV file [default: auto]
@@ -179,7 +183,7 @@ Usage:
     gu csv filter infile.csv[.gz] -c ALLELE1 -r "^[ACGT]$" [-o outfile.csv[.gz]]
 
 Arguments:
-  [INPUT]  CSV file to process (can be gzipped if filename ends with .gz) [default: stdin]
+  [INPUT]  CSV file to process (gzipped input is detected automatically) [default: stdin]
 
 Options:
   -e, --expression <EXPRESSION>...  Expression(s) to filter rows, in the format "COLUMN-NAME OPERATOR VALUE". Possible operators are: "==", "!=", ">=", "<=", ">", "<"
@@ -199,7 +203,7 @@ Merge two CSV files based on a shared column
 Usage: gu csv merge infile1.csv[.gz] infile2.csv[.gz] -c KEY_COLUMN [-o outfile.csv[.gz]]
 
 Arguments:
-  <INPUT> <INPUT>...  CSV files to merge (can be gzipped if filenames end with .gz). The first file is held in memory, so its keys should be unique (see --on-duplicate). The second file is streamed from disk for --join=inner and --join=right (see --strict); keys that repeat in it each produce an output row. Rows with a missing key (empty, NA) never match
+  <INPUT> <INPUT>...  CSV files to merge (gzipped input is detected automatically). The first file is held in memory, so its keys should be unique (see --on-duplicate). The second file is streamed from disk for --join=inner and --join=right (see --strict); keys that repeat in it each produce an output row. Rows with a missing key (empty, NA) never match
 
 Options:
   -c, --column <COLUMN>              Column name to merge on
@@ -223,7 +227,7 @@ Usage:
     gu csv reheader infile.csv[.gz] -c OLDCOL1=NEWCOL1 OLDCOL2=NEWCOL2 ... [-o outfile.csv[.gz]]
 
 Arguments:
-  [INPUT]  CSV file to process (can be gzipped if filename ends with .gz) [default: stdin]
+  [INPUT]  CSV file to process (gzipped input is detected automatically) [default: stdin]
 
 Options:
   -l, --list <LIST>...        New header to write (format: list of strings corresponding to new column names)
@@ -244,7 +248,7 @@ Usage:
     gu csv select infile.csv[.gz] -v -c|-i|-r <...> [-o outfile.csv[.gz]]  (all columns EXCEPT those)
 
 Arguments:
-  [INPUT]  CSV file to process (can be gzipped if filename ends with .gz) [default: stdin]
+  [INPUT]  CSV file to process (gzipped input is detected automatically) [default: stdin]
 
 Options:
   -c, --columns <COLUMNS>...  Column names to select or...
@@ -264,7 +268,7 @@ Split a CSV file into multiple files based on unique values in a specified categ
 Usage: gu csv split infile.csv[.gz] -c colname
 
 Arguments:
-  [INPUT]  CSV file to process (can be gzipped if filename ends with .gz) [default: stdin]
+  [INPUT]  CSV file to process (gzipped input is detected automatically) [default: stdin]
 
 Options:
   -c, --column <COLUMN>  Categorical column name to split on. One file is written per distinct value, named COLNAME.VALUE.SUFFIX. Characters that can't be used in a file name ("/", control characters) and "%" are percent-encoded (e.g. "a/b" becomes "a%2Fb"). Values that differ only by case are an error, because their files can't be told apart on some file systems
@@ -294,7 +298,7 @@ Calculate the genomic inflation factor (lambda) from a P or (minus) LOG10P colum
 Usage: gu csv stats lambda infile.csv[.gz] [--p P_COLUMN | --log10p LOG10P_COLUMN] [-o outfile.txt[.gz]]
 
 Arguments:
-  [INPUT]  CSV file to process (can be gzipped if filename ends with .gz) [default: stdin]
+  [INPUT]  CSV file to process (gzipped input is detected automatically) [default: stdin]
 
 Options:
   -d, --delim <DELIM>    Delimiter for CSV file reading [default: auto]
