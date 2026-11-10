@@ -74,6 +74,44 @@ pub(crate) fn get_column_value_from_idx(
     record.get(col_idx).ok_or(column_idx_out_of_bounds_error())
 }
 
+/// Whether a field is one of the conventional markers for a missing value
+/// (empty, NA, N/A, NaN; case-insensitive)
+pub(crate) fn is_missing(value: &str) -> bool {
+    let v = value.trim();
+    v.is_empty()
+        || v.eq_ignore_ascii_case("na")
+        || v.eq_ignore_ascii_case("n/a")
+        || v.eq_ignore_ascii_case("nan")
+}
+
+/// Parse a numeric field. Missing values (see `is_missing`) give `Ok(None)`; anything else that
+/// isn't a number is an error rather than being silently treated as missing.
+pub(crate) fn parse_optional_f64(value: &str) -> Result<Option<f64>> {
+    if is_missing(value) {
+        return Ok(None);
+    }
+    match value.trim().parse::<f64>() {
+        Ok(v) if v.is_nan() => Ok(None),
+        Ok(v) => Ok(Some(v)),
+        Err(_) => Err(GuError::Message(format!(
+            "Invalid numeric value \"{}\"",
+            value
+        ))),
+    }
+}
+
+/// Prefix an error with the column and line it came from
+pub(crate) fn with_value_context<T>(
+    result: Result<T>,
+    column: &str,
+    record: &csv::StringRecord,
+) -> Result<T> {
+    result.map_err(|e| match record.position() {
+        Some(pos) => GuError::Message(format!("Column \"{}\", line {}: {}", column, pos.line(), e)),
+        None => GuError::Message(format!("Column \"{}\": {}", column, e)),
+    })
+}
+
 pub(crate) fn get_p_from_log10_p(log10_p: f64) -> f64 {
     let temp = log10_p.abs() * -1.0; // Convert to negative number regardless of input sign (these are p-values so they must be <= 1)
     let p = f64::powf(10.0, temp);
@@ -93,6 +131,25 @@ mod tests {
         assert_eq!(get_delimeter_from_cli_argument(" ").unwrap(), ' ');
         assert_eq!(get_delimeter_from_cli_argument(",").unwrap(), ',');
         assert!(get_delimeter_from_cli_argument("::").is_err());
+    }
+
+    #[test]
+    fn test_is_missing() {
+        for v in ["", " ", "NA", "na", "N/A", "NaN", "nan"] {
+            assert!(is_missing(v), "{v:?} should be missing");
+        }
+        for v in ["0", "foo", "-1", "inf"] {
+            assert!(!is_missing(v), "{v:?} should not be missing");
+        }
+    }
+
+    #[test]
+    fn test_parse_optional_f64() {
+        assert_eq!(parse_optional_f64("1.5").unwrap(), Some(1.5));
+        assert_eq!(parse_optional_f64(" 2 ").unwrap(), Some(2.0));
+        assert_eq!(parse_optional_f64("NA").unwrap(), None);
+        assert_eq!(parse_optional_f64("").unwrap(), None);
+        assert!(parse_optional_f64("foo").is_err());
     }
 
     #[test]

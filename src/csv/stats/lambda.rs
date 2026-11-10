@@ -6,7 +6,7 @@ use gwas_utils::{GuError, Result, open_reader, open_writer};
 
 use crate::csv::lib::{
     get_column_idx_from_name, get_column_value_from_idx, get_csv_reader,
-    get_delimeter_from_cli_argument, get_p_from_log10_p,
+    get_delimeter_from_cli_argument, get_p_from_log10_p, parse_optional_f64, with_value_context,
 };
 
 pub(crate) const ABOUT: &str =
@@ -91,7 +91,7 @@ where
     for result in csv_rdr.records() {
         let record = result?;
         let p_val = get_column_value_from_idx(&record, p_col_idx)?;
-        if let Some(p) = get_p(p_val, p_col_type)? {
+        if let Some(p) = with_value_context(get_p(p_val, p_col_type), &p_col, &record)? {
             chisqs.push(get_chisq_1df_from_p(p));
         }
     }
@@ -108,9 +108,9 @@ where
 
 // Missing/non-numeric values (e.g. "NA") are skipped
 fn get_p(p_val: &str, p_col_type: PColumnType) -> Result<Option<f64>> {
-    let val = match p_val.parse::<f64>() {
-        Ok(val) if !val.is_nan() => val,
-        _ => return Ok(None),
+    let val = match parse_optional_f64(p_val)? {
+        Some(val) => val,
+        None => return Ok(None),
     };
     let p = match p_col_type {
         PColumnType::P => val,
@@ -196,6 +196,8 @@ mod tests {
         assert_close(get_p("-2", PColumnType::Log10P).unwrap().unwrap(), 0.01);
         assert_eq!(get_p("NA", PColumnType::P).unwrap(), None);
         assert!(get_p("1.5", PColumnType::P).is_err());
+        assert_eq!(get_p("", PColumnType::P).unwrap(), None);
+        assert!(get_p("foo", PColumnType::P).is_err());
     }
 
     #[test]

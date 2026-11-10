@@ -5,7 +5,7 @@ use gwas_utils::{GuError, Result, open_reader, open_writer};
 
 use crate::csv::lib::{
     get_column_idx_from_name, get_column_value_from_idx, get_csv_reader, get_csv_writer,
-    get_delimeter_from_cli_argument,
+    get_delimeter_from_cli_argument, is_missing, with_value_context,
 };
 
 pub(crate) const ABOUT: &str = "Filter rows from a CSV file based on column-specific expressions";
@@ -100,27 +100,38 @@ impl std::str::FromStr for Operator {
 }
 
 impl Operator {
+    /// Compare a field (`left`) against the expression's value (`right`).
+    /// If both are numbers the comparison is numeric. Otherwise `==` and `!=` compare as strings,
+    /// and the ordering operators require numbers: a missing value (NA, empty, ...) simply
+    /// doesn't satisfy the comparison, but any other non-numeric value is an error.
     fn compare(&self, left: &str, right: &str) -> Result<bool> {
-        let left_num = left.parse::<f64>();
-        let right_num = right.parse::<f64>();
+        let left_num = left.trim().parse::<f64>();
+        let right_num = right.trim().parse::<f64>();
 
-        if let (Ok(left_val), Ok(right_val)) = (left_num, right_num) {
-            match self {
-                Operator::Equal => Ok(left_val == right_val),
-                Operator::NotEqual => Ok(left_val != right_val),
-                Operator::GreaterThan => Ok(left_val > right_val),
-                Operator::LessThan => Ok(left_val < right_val),
-                Operator::GreaterThanOrEqual => Ok(left_val >= right_val),
-                Operator::LessThanOrEqual => Ok(left_val <= right_val),
-            }
-        } else {
-            match self {
-                Operator::Equal => Ok(left == right),
-                Operator::NotEqual => Ok(left != right),
-                _ => Err(GuError::Message(
-                    "Invalid operator for non-numeric values".into(),
-                )),
-            }
+        if let (Ok(left_val), Ok(right_val)) = (&left_num, &right_num) {
+            let (left_val, right_val) = (*left_val, *right_val);
+            return Ok(match self {
+                Operator::Equal => left_val == right_val,
+                Operator::NotEqual => left_val != right_val,
+                Operator::GreaterThan => left_val > right_val,
+                Operator::LessThan => left_val < right_val,
+                Operator::GreaterThanOrEqual => left_val >= right_val,
+                Operator::LessThanOrEqual => left_val <= right_val,
+            });
+        }
+
+        match self {
+            Operator::Equal => Ok(left == right),
+            Operator::NotEqual => Ok(left != right),
+            _ if right_num.is_err() => Err(GuError::Message(format!(
+                "Can't compare with a non-numeric value \"{}\" using an ordering operator",
+                right
+            ))),
+            _ if is_missing(left) => Ok(false),
+            _ => Err(GuError::Message(format!(
+                "Invalid numeric value \"{}\"",
+                left
+            ))),
         }
     }
 }
@@ -230,7 +241,11 @@ where
                         expr.column_idx
                             .ok_or(GuError::Message("Column index not set".into()))?,
                     )?;
-                    expr.operator.compare(value, &expr.value)
+                    with_value_context(
+                        expr.operator.compare(value, &expr.value),
+                        &expr.column_name,
+                        &record,
+                    )
                 })
                 .collect::<Result<Vec<bool>>>()?,
             RowFilter::Regex(cr) => {
@@ -372,6 +387,39 @@ mod tests {
 
         let result_str = String::from_utf8(wtr.into_inner()).unwrap();
         assert_eq!(result_str, desired_result);
+    }
+
+    #[test]
+    fn test_compare_missing_values() {
+        // Missing values never satisfy an ordering comparison, but don't abort the run
+        assert!(!Operator::LessThan.compare("NA", "0.05").unwrap());
+        assert!(!Operator::GreaterThanOrEqual.compare("", "0.05").unwrap());
+        // ...whereas genuinely invalid values and non-numeric expression values do
+        assert!(Operator::LessThan.compare("foo", "0.05").is_err());
+        assert!(Operator::LessThan.compare("1", "abc").is_err());
+        // Equality still works on strings
+        assert!(Operator::Equal.compare("NA", "NA").unwrap());
+        assert!(Operator::NotEqual.compare("NA", "0.05").unwrap());
+    }
+
+    #[test]
+    fn test_filter_numeric_expression_with_missing_values() {
+        let input = "ID P\na 0.01\nb NA\nc 0.5\n";
+        let mut wtr = Cursor::new(Vec::new());
+        let filters = RowFilter::Expressions(vec![parse_expression("P < 0.05").unwrap()]);
+        process_file(
+            Cursor::new(input.as_bytes()),
+            &mut wtr,
+            ' ',
+            filters,
+            false,
+            false,
+        )
+        .unwrap();
+        assert_eq!(
+            String::from_utf8(wtr.into_inner()).unwrap(),
+            "ID P\na 0.01\n"
+        );
     }
 
     const INPUT_2: &str = r#"CHROM GENPOS ID ALLELE0 ALLELE1 A1FREQ

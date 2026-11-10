@@ -101,7 +101,7 @@ fn get_column_indices_to_select(
         ColumnSelection::Indices(indices) => indices
             .iter()
             .map(|&idx| {
-                if idx > header.len() {
+                if idx == 0 || idx > header.len() {
                     Err(column_idx_out_of_bounds_error())
                 } else {
                     Ok(idx - 1)
@@ -257,6 +257,13 @@ mod tests {
     #[test]
     fn test_select_indices_out_of_bounds() {
         let result = run_select(ColumnSelection::Indices(vec![3, 1, 100]), false);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_select_indices_zero() {
+        // Indices are 1-based, so 0 is invalid (and must not panic)
+        let result = run_select(ColumnSelection::Indices(vec![0]), false);
         assert!(result.is_err());
     }
 
