@@ -208,6 +208,7 @@ enum OpenFile {
 /// so a failed run doesn't leave an empty or half-written output file behind.
 pub struct LazyFile {
     path: String,
+    gzip_threads: usize,
     file: Option<OpenFile>,
 }
 
@@ -218,7 +219,7 @@ impl LazyFile {
             self.file = Some(if self.path.ends_with(".gz") {
                 OpenFile::Gzp(
                     ZBuilder::<Gzip, _>::new()
-                        .num_threads(gzip_threads())
+                        .num_threads(self.gzip_threads)
                         .from_writer(f),
                 )
             } else {
@@ -267,6 +268,13 @@ impl Write for Writer {
 /// something is written to it. The name "stdout" writes to standard output.
 /// Fails if the file is one that has already been opened for reading.
 pub fn open_writer(filename: &str) -> Result<Writer> {
+    open_writer_with_gzip_threads(filename, gzip_threads())
+}
+
+/// Like `open_writer`, but with an explicit number of compression threads for gzip output.
+/// Use 1 when many files will be open at once: that compresses on the calling thread and starts
+/// no extra threads, whereas anything greater starts that many threads per file.
+pub fn open_writer_with_gzip_threads(filename: &str, gzip_threads: usize) -> Result<Writer> {
     if filename == "stdout" {
         let f = std::io::stdout();
         return Ok(Writer::Stdout(f));
@@ -284,6 +292,7 @@ pub fn open_writer(filename: &str) -> Result<Writer> {
     }
     Ok(Writer::File(LazyFile {
         path: filename.to_string(),
+        gzip_threads: gzip_threads.max(1),
         file: None,
     }))
 }

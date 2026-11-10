@@ -265,7 +265,7 @@ Arguments:
   [INPUT]  CSV file to process (can be gzipped if filename ends with .gz) [default: stdin]
 
 Options:
-  -c, --column <COLUMN>  Categorical column name to split on
+  -c, --column <COLUMN>  Categorical column name to split on. One file is written per distinct value, named COLNAME.VALUE.SUFFIX. Characters that can't be used in a file name ("/", control characters) and "%" are percent-encoded (e.g. "a/b" becomes "a%2Fb"). Values that differ only by case are an error, because their files can't be told apart on some file systems
   -d, --delim <DELIM>    Delimiter for CSV file reading and writing [default: auto]
   -s, --suffix <SUFFIX>  Suffix to add to output filenames (by default output files will be named "COLNAME.VAL.csv") [default: csv]
   -h, --help             Print help

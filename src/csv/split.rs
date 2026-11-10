@@ -3,9 +3,11 @@ use std::collections::HashMap;
 use std::io;
 use std::path::Path;
 
-use gwas_utils::{GuError, Result, open_writer};
+use gwas_utils::{GuError, Result, open_writer_with_gzip_threads};
 
-use crate::csv::lib::{get_column_idx_from_name, get_csv_reader, open_input};
+use crate::csv::lib::{
+    get_column_idx_from_name, get_column_value_from_idx, get_csv_reader, open_input,
+};
 
 pub(crate) const ABOUT: &str =
     "Split a CSV file into multiple files based on unique values in a specified categorical column";
@@ -21,7 +23,10 @@ pub(crate) struct Args {
     #[arg(default_value = "stdin")]
     input: String,
 
-    /// Categorical column name to split on
+    /// Categorical column name to split on. One file is written per distinct value, named
+    /// COLNAME.VALUE.SUFFIX. Characters that can't be used in a file name ("/", control
+    /// characters) and "%" are percent-encoded (e.g. "a/b" becomes "a%2Fb"). Values that differ
+    /// only by case are an error, because their files can't be told apart on some file systems
     #[arg(short, long)]
     column: String,
 
@@ -49,6 +54,76 @@ fn handle_commandline_args(args: Args) -> Result<(gwas_utils::Reader, String, ch
     Ok((file_rdr, args.column, sep, suffix))
 }
 
+/// Compression threads for each gzip output. Every distinct value gets its own output file, all
+/// open at once, so a thread pool for each would exhaust the system (60 values once peaked at
+/// 541 threads). With 1, gzp compresses on the calling thread and starts no extra threads.
+const GZIP_THREADS_PER_OUTPUT: usize = 1;
+
+/// Whether a character can't safely be used as it is in part of a file name
+fn needs_encoding(c: char) -> bool {
+    c.is_control() || c == '/' || c == '%'
+}
+
+/// Percent-encode the characters in `value` that can't be used in a file name, so that every
+/// value maps to a different, valid file name ("%" is encoded too, so that the mapping can't
+/// produce the same name for two values)
+fn encode_file_name_component(value: &str) -> String {
+    let mut encoded = String::with_capacity(value.len());
+    for c in value.chars() {
+        if needs_encoding(c) {
+            let mut buf = [0u8; 4];
+            for byte in c.encode_utf8(&mut buf).bytes() {
+                encoded.push_str(&format!("%{:02X}", byte));
+            }
+        } else {
+            encoded.push(c);
+        }
+    }
+    encoded
+}
+
+/// "Too many open files" (EMFILE / ENFILE on Unix, ERROR_TOO_MANY_OPEN_FILES on Windows)
+fn is_too_many_open_files(e: &io::Error) -> bool {
+    if cfg!(unix) {
+        matches!(e.raw_os_error(), Some(23) | Some(24))
+    } else if cfg!(windows) {
+        e.raw_os_error() == Some(4)
+    } else {
+        false
+    }
+}
+
+/// Describe a failure to write to one of the output files, naming the file and, for the
+/// common "too many files" case, what to do about it
+fn output_error(e: &io::Error, file_name: &str, column: &str, files_open: usize) -> GuError {
+    if is_too_many_open_files(e) {
+        GuError::Message(format!(
+            "Too many open files: splitting on column \"{}\" needs more output files than the system allows to be open at once ({} distinct values had been seen when it failed). Use a column with fewer distinct values",
+            column, files_open
+        ))
+    } else {
+        GuError::Message(format!("Couldn't write to {}: {}", file_name, e))
+    }
+}
+
+fn write_to_output(
+    wtr: &mut csv::Writer<gwas_utils::Writer>,
+    record: &csv::StringRecord,
+    file_name: &str,
+    column: &str,
+    files_open: usize,
+) -> Result<()> {
+    wtr.write_record(record).map_err(|e| match e.kind() {
+        csv::ErrorKind::Io(io_err) => output_error(io_err, file_name, column, files_open),
+        _ => GuError::from(e),
+    })
+}
+
+struct Output {
+    file_name: String,
+    writer: csv::Writer<gwas_utils::Writer>,
+}
+
 /// Write one file per unique value of the split column into `out_dir`
 fn process_file<R>(
     rdr: R,
@@ -63,30 +138,70 @@ where
     let mut csv_rdr = get_csv_reader(rdr, sep);
     let header = csv_rdr.headers()?.clone();
     let column_index = get_column_idx_from_name(&header, &column_to_split_on)?;
+    let column_in_file_names = encode_file_name_component(&column_to_split_on);
 
-    let mut file_handles: HashMap<String, csv::Writer<gwas_utils::Writer>> = HashMap::new();
+    let mut outputs: HashMap<String, Output> = HashMap::new();
+    // Lower-cased file name -> the value that claimed it, to catch values whose files would be
+    // the same file on a case-insensitive file system
+    let mut claimed_names: HashMap<String, String> = HashMap::new();
+
     for result in csv_rdr.records() {
         let record = result?;
-        if let Some(value) = record.get(column_index) {
-            if file_handles.contains_key(value) {
-                let csv_wtr = file_handles.get_mut(value).ok_or(GuError::Message(format!(
-                    "Failed to get file handle for value '{}'",
-                    value
-                )))?;
-                csv_wtr.write_record(&record)?;
-            } else {
-                let file_handle = out_dir
-                    .join(format!("{}.{}{}", column_to_split_on, value, suffix))
-                    .to_string_lossy()
-                    .into_owned();
-                let mut csv_wtr = csv::WriterBuilder::new()
-                    .delimiter(sep as u8)
-                    .from_writer(open_writer(&file_handle)?);
-                csv_wtr.write_record(&header)?;
-                csv_wtr.write_record(&record)?;
-                file_handles.insert(value.to_string(), csv_wtr);
+        let value = get_column_value_from_idx(&record, column_index)?;
+
+        if !outputs.contains_key(value) {
+            let file_name = out_dir
+                .join(format!(
+                    "{}.{}{}",
+                    column_in_file_names,
+                    encode_file_name_component(value),
+                    suffix
+                ))
+                .to_string_lossy()
+                .into_owned();
+            if let Some(other_value) =
+                claimed_names.insert(file_name.to_lowercase(), value.to_string())
+            {
+                return Err(GuError::Message(format!(
+                    "The values \"{}\" and \"{}\" would be written to files whose names differ only by case ({}), which can't be told apart on case-insensitive file systems",
+                    other_value, value, file_name
+                )));
             }
+            let mut writer = csv::WriterBuilder::new().delimiter(sep as u8).from_writer(
+                open_writer_with_gzip_threads(&file_name, GZIP_THREADS_PER_OUTPUT)?,
+            );
+            write_to_output(
+                &mut writer,
+                &header,
+                &file_name,
+                &column_to_split_on,
+                outputs.len(),
+            )?;
+            outputs.insert(value.to_string(), Output { file_name, writer });
         }
+
+        let files_open = outputs.len();
+        if let Some(output) = outputs.get_mut(value) {
+            write_to_output(
+                &mut output.writer,
+                &record,
+                &output.file_name,
+                &column_to_split_on,
+                files_open,
+            )?;
+        }
+    }
+
+    // Flush every file explicitly, so that a write error (e.g. a file that can't be created, or a
+    // full disk) is reported instead of being silently ignored when the writer is dropped. Each
+    // writer is dropped, closing its file, before the next is flushed, so this doesn't need all
+    // the files open at the same time.
+    let files_open = outputs.len();
+    for (_, mut output) in outputs.drain() {
+        output
+            .writer
+            .flush()
+            .map_err(|e| output_error(&e, &output.file_name, &column_to_split_on, files_open))?;
     }
 
     Ok(())
@@ -156,5 +271,94 @@ mod tests {
         fs::remove_dir_all(&dir).unwrap();
         assert_eq!(result_1, desired_result_1);
         assert_eq!(result_2, desired_result_2);
+    }
+
+    #[test]
+    fn test_encode_file_name_component() {
+        assert_eq!(encode_file_name_component("1"), "1");
+        assert_eq!(
+            encode_file_name_component("European ancestry"),
+            "European ancestry"
+        );
+        assert_eq!(encode_file_name_component("chr1:100-200"), "chr1:100-200");
+        assert_eq!(encode_file_name_component("Caf\u{e9}"), "Caf\u{e9}");
+        assert_eq!(encode_file_name_component("a/b"), "a%2Fb");
+        assert_eq!(encode_file_name_component("../x"), "..%2Fx");
+        assert_eq!(encode_file_name_component("100%"), "100%25");
+        assert_eq!(encode_file_name_component("a\nb\0c"), "a%0Ab%00c");
+    }
+
+    #[test]
+    fn test_encoding_is_collision_free() {
+        // "%" is encoded, so a literal "%2F" can't look like an encoded "/"
+        assert_ne!(
+            encode_file_name_component("a/b"),
+            encode_file_name_component("a%2Fb")
+        );
+    }
+
+    fn temp_dir(name: &str) -> std::path::PathBuf {
+        let dir = std::env::temp_dir().join(format!("gu-split-{}-{}", name, std::process::id()));
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(&dir).unwrap();
+        dir
+    }
+
+    #[test]
+    fn test_values_with_unsafe_characters_get_encoded_file_names() {
+        let dir = temp_dir("encode");
+        process_file(
+            std::io::Cursor::new("k,v\nx,1\na/b,2\n50%,3\n".as_bytes()),
+            "k".to_string(),
+            ',',
+            ".csv".to_string(),
+            &dir,
+        )
+        .unwrap();
+
+        assert_eq!(
+            fs::read_to_string(dir.join("k.x.csv")).unwrap(),
+            "k,v\nx,1\n"
+        );
+        assert_eq!(
+            fs::read_to_string(dir.join("k.a%2Fb.csv")).unwrap(),
+            "k,v\na/b,2\n"
+        );
+        assert_eq!(
+            fs::read_to_string(dir.join("k.50%25.csv")).unwrap(),
+            "k,v\n50%,3\n"
+        );
+        fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn test_values_differing_only_by_case_are_an_error() {
+        let dir = temp_dir("case");
+        let err = process_file(
+            std::io::Cursor::new("k,v\na,1\nA,2\n".as_bytes()),
+            "k".to_string(),
+            ',',
+            ".csv".to_string(),
+            &dir,
+        )
+        .expect_err("should fail")
+        .to_string();
+        assert!(
+            err.contains("\"a\"") && err.contains("\"A\"") && err.contains("case"),
+            "{err}"
+        );
+
+        // The rows read before the error are still written (a dropped writer flushes), but the
+        // colliding value never gets a file, so it can't overwrite the first value's rows
+        let files: Vec<_> = fs::read_dir(&dir)
+            .unwrap()
+            .map(|e| e.unwrap().file_name().into_string().unwrap())
+            .collect();
+        assert_eq!(files, vec!["k.a.csv"]);
+        assert_eq!(
+            fs::read_to_string(dir.join("k.a.csv")).unwrap(),
+            "k,v\na,1\n"
+        );
+        fs::remove_dir_all(&dir).unwrap();
     }
 }

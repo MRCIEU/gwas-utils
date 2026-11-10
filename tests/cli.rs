@@ -635,6 +635,126 @@ fn split_with_custom_and_gzip_suffix() {
 }
 
 #[test]
+fn split_encodes_characters_that_cant_be_in_file_names() {
+    // "/" can't be part of a file name, so it's percent-encoded rather than failing or (as
+    // happened once) silently dropping the rows
+    let dir = TempDir::new();
+    dir.write("data.csv", "k,v\nx,1\na/b,2\n50%,3\ny,4\n");
+
+    let out = gu_in(&dir.0, &[&"csv", &"split", &"data.csv", &"-c", &"k"]);
+    assert!(out.status.success(), "{}", stderr(&out));
+    assert_eq!(
+        fs::read_to_string(dir.path("k.x.csv")).unwrap(),
+        "k,v\nx,1\n"
+    );
+    assert_eq!(
+        fs::read_to_string(dir.path("k.a%2Fb.csv")).unwrap(),
+        "k,v\na/b,2\n"
+    );
+    assert_eq!(
+        fs::read_to_string(dir.path("k.50%25.csv")).unwrap(),
+        "k,v\n50%,3\n"
+    );
+    assert_eq!(
+        fs::read_to_string(dir.path("k.y.csv")).unwrap(),
+        "k,v\ny,4\n"
+    );
+}
+
+#[test]
+fn split_reports_a_file_it_cant_write_instead_of_silently_dropping_rows() {
+    // Make the file for one value impossible to create (a directory is already there). That must
+    // be an error naming the file, not a successful run that quietly omits those rows.
+    let dir = TempDir::new();
+    dir.write("data.csv", "k,v\nx,1\ny,2\n");
+    fs::create_dir(dir.path("k.y.csv")).unwrap();
+
+    let out = gu_in(&dir.0, &[&"csv", &"split", &"data.csv", &"-c", &"k"]);
+    assert!(!out.status.success(), "rows were silently dropped");
+    assert!(stderr(&out).contains("k.y.csv"), "{}", stderr(&out));
+}
+
+#[test]
+fn split_rejects_values_that_differ_only_by_case() {
+    // On a case-insensitive file system these would be the same file, and one value's rows would
+    // overwrite the other's
+    let dir = TempDir::new();
+    dir.write("data.csv", "k,v\na,1\nA,2\na,3\nA,4\n");
+
+    let out = gu_in(&dir.0, &[&"csv", &"split", &"data.csv", &"-c", &"k"]);
+    assert!(!out.status.success());
+    let err = stderr(&out);
+    assert!(err.contains("differ only by case"), "{err}");
+    // The second value never gets a file, so it can't overwrite the first value's rows. (List the
+    // directory rather than testing for each name, since on a case-insensitive file system both
+    // names refer to the same file.)
+    let outputs: Vec<_> = fs::read_dir(&dir.0)
+        .unwrap()
+        .map(|e| e.unwrap().file_name().into_string().unwrap())
+        .filter(|name| name != "data.csv")
+        .collect();
+    assert_eq!(outputs, vec!["k.a.csv"]);
+    assert_eq!(
+        fs::read_to_string(dir.path("k.a.csv")).unwrap(),
+        "k,v\na,1\n"
+    );
+}
+
+#[cfg(unix)]
+mod open_file_limits {
+    use super::*;
+
+    /// Run `gu csv split` in `dir` with a limit on how many files it can have open
+    fn split_with_fd_limit(dir: &TempDir, limit: usize, extra: &str) -> Output {
+        Command::new("sh")
+            .current_dir(&dir.0)
+            .arg("-c")
+            .arg(format!(
+                "ulimit -n {limit}; exec \"$GU\" csv split data.csv -c k {extra}"
+            ))
+            .env("GU", env!("CARGO_BIN_EXE_gu"))
+            .output()
+            .unwrap()
+    }
+
+    fn many_values(dir: &TempDir, values: usize, rows_per_value: usize) {
+        let mut contents = String::from("k,v\n");
+        for row in 0..rows_per_value {
+            for value in 0..values {
+                contents.push_str(&format!("v{value},{row}\n"));
+            }
+        }
+        dir.write("data.csv", &contents);
+    }
+
+    #[test]
+    fn too_many_distinct_values_is_a_clear_error() {
+        let dir = TempDir::new();
+        many_values(&dir, 100, 3000);
+
+        let out = split_with_fd_limit(&dir, 40, "");
+        assert!(!out.status.success());
+        let err = stderr(&out);
+        assert!(err.contains("Too many open files"), "{err}");
+        assert!(err.contains("fewer distinct values"), "{err}");
+    }
+
+    #[test]
+    fn small_inputs_with_many_values_dont_need_all_files_open_at_once() {
+        // Each file is closed as soon as it has been flushed at the end of the run
+        let dir = TempDir::new();
+        many_values(&dir, 100, 2);
+
+        let out = split_with_fd_limit(&dir, 40, "");
+        assert!(out.status.success(), "{}", stderr(&out));
+        assert_eq!(
+            fs::read_to_string(dir.path("k.v57.csv")).unwrap(),
+            "k,v\nv57,0\nv57,1\n"
+        );
+    }
+}
+
+#[test]
 fn split_on_unknown_column_creates_no_files() {
     let dir = TempDir::new();
     dir.write("data.csv", "CHR,POS\n1,10\n");
