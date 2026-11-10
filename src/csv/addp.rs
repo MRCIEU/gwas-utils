@@ -1,11 +1,11 @@
 use clap::Parser;
 use std::io;
 
-use gwas_utils::{Result, open_reader, open_writer};
+use gwas_utils::{Result, open_writer};
 
 use crate::csv::lib::{
     get_column_idx_from_name, get_column_value_from_idx, get_csv_reader, get_csv_writer,
-    get_delimiter_from_cli_argument, get_p_from_log10_p, parse_optional_f64, with_value_context,
+    get_p_from_log10_p, open_input, parse_optional_f64, with_value_context,
 };
 
 pub(crate) const ABOUT: &str = "Add a P column to a CSV file based on a (minus) LOG10P column";
@@ -42,12 +42,8 @@ pub(crate) fn run(args: Args) -> Result<()> {
 fn handle_commandline_args(
     args: Args,
 ) -> Result<(gwas_utils::Reader, gwas_utils::Writer, char, String)> {
-    let mut file_rdr = open_reader(&args.input)?;
+    let (file_rdr, sep) = open_input(&args.input, &args.delim)?;
     let file_wtr = open_writer(&args.output)?;
-    let sep = match args.delim.as_str() {
-        "auto" => file_rdr.sniff_csv_delimiter()?,
-        _ => get_delimiter_from_cli_argument(&args.delim)?,
-    };
     Ok((file_rdr, file_wtr, sep, args.log10p))
 }
 

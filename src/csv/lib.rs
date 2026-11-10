@@ -1,4 +1,4 @@
-use gwas_utils::{GuError, Result};
+use gwas_utils::{GuError, Reader, Result, open_reader};
 
 pub fn get_delimiter_from_cli_argument(sep: &str) -> Result<char> {
     let single_ascii_err = "Delimiter must be a single ASCII character".to_string();
@@ -11,6 +11,23 @@ pub fn get_delimiter_from_cli_argument(sep: &str) -> Result<char> {
         return Err(GuError::Message(single_ascii_err));
     }
     Ok(c)
+}
+
+/// Work out the delimiter to use for `rdr` from a command-line value: "auto" sniffs it from the
+/// start of the input, anything else is parsed as the delimiter itself.
+pub(crate) fn resolve_delimiter(rdr: &mut Reader, delim: &str) -> Result<char> {
+    match delim {
+        "auto" => rdr.sniff_csv_delimiter(),
+        _ => get_delimiter_from_cli_argument(delim),
+    }
+}
+
+/// Open an input file (or "stdin") and work out its delimiter (see `resolve_delimiter`).
+/// Inputs must be opened before outputs, so that an output can't overwrite an input.
+pub(crate) fn open_input(filename: &str, delim: &str) -> Result<(Reader, char)> {
+    let mut rdr = open_reader(filename)?;
+    let sep = resolve_delimiter(&mut rdr, delim)?;
+    Ok((rdr, sep))
 }
 
 pub(crate) fn get_csv_reader<R: std::io::Read>(rdr: R, sep: char) -> csv::Reader<R> {

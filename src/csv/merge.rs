@@ -2,11 +2,11 @@ use clap::Parser;
 use std::collections::HashMap;
 use std::io;
 
-use gwas_utils::{GuError, Result, open_reader, open_writer};
+use gwas_utils::{GuError, Result, open_writer};
 
 use crate::csv::lib::{
     get_column_idx_from_name, get_column_value_from_idx, get_csv_reader, get_csv_writer,
-    get_delimiter_from_cli_argument, is_missing,
+    is_missing, open_input,
 };
 
 pub(crate) const ABOUT: &str = "Merge two CSV files based on a shared column";
@@ -131,17 +131,9 @@ fn handle_commandline_args(
     gwas_utils::Writer,
     MergeConfig,
 )> {
-    let mut file_rdr1 = open_reader(&args.input[0])?;
-    let mut file_rdr2 = open_reader(&args.input[1])?;
+    let (file_rdr1, sep1) = open_input(&args.input[0], &args.d1)?;
+    let (file_rdr2, sep2) = open_input(&args.input[1], &args.d2)?;
     let file_wtr = open_writer(&args.output)?;
-    let sep1 = match args.d1.as_str() {
-        "auto" => file_rdr1.sniff_csv_delimiter()?,
-        _ => get_delimiter_from_cli_argument(&args.d1)?,
-    };
-    let sep2 = match args.d2.as_str() {
-        "auto" => file_rdr2.sniff_csv_delimiter()?,
-        _ => get_delimiter_from_cli_argument(&args.d2)?,
-    };
     let config = MergeConfig {
         column1: args.column,
         column2: args.c2,

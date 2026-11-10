@@ -1,11 +1,11 @@
 use clap::Parser;
 use std::io;
 
-use gwas_utils::{GuError, Result, open_reader, open_writer};
+use gwas_utils::{GuError, Result, open_writer};
 
 use crate::csv::lib::{
     get_column_idx_from_name, get_column_value_from_idx, get_csv_reader, get_csv_writer,
-    get_delimiter_from_cli_argument, is_missing, with_value_context,
+    is_missing, open_input, with_value_context,
 };
 
 pub(crate) const ABOUT: &str = "Filter rows from a CSV file based on column-specific expressions";
@@ -146,12 +146,8 @@ fn handle_commandline_args(
     bool,
     bool,
 )> {
-    let mut file_rdr = open_reader(&args.input)?;
+    let (file_rdr, sep) = open_input(&args.input, &args.delim)?;
     let file_wtr = open_writer(&args.output)?;
-    let sep = match args.delim.as_str() {
-        "auto" => file_rdr.sniff_csv_delimiter()?,
-        _ => get_delimiter_from_cli_argument(&args.delim)?,
-    };
     let filters = if !args.expression.is_empty() {
         RowFilter::Expressions(parse_expressions(args.expression)?)
     } else if let Some(ref regex_str) = args.regex {
