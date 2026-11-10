@@ -95,7 +95,7 @@ Commands:
   cat       Concatenate multiple CSV files into a single file
   delim     Change the delimeter of a CSV file
   filter    Filter rows from a CSV file based on column-specific expressions
-  merge     Merge two CSV files based on a shared column. Duplicate keys are not handled sensibly
+  merge     Merge two CSV files based on a shared column
   reheader  Reheader a CSV file
   select    Select specific columns from a CSV file
   split     Split a CSV file into multiple files based on unique values in a specified categorical column
@@ -194,22 +194,24 @@ Options:
 
 ```
 ❯ gu csv merge -h
-Merge two CSV files based on a shared column. Duplicate keys are not handled sensibly
+Merge two CSV files based on a shared column
 
 Usage: gu csv merge infile1.csv[.gz] infile2.csv[.gz] -c KEY_COLUMN [-o outfile.csv[.gz]]
 
 Arguments:
-  <INPUT> <INPUT>...  CSV files to merge (can be gzipped if filenames end with .gz). Right-hand file is streamed from disk for --join=inner and --join=right
+  <INPUT> <INPUT>...  CSV files to merge (can be gzipped if filenames end with .gz). The first file is held in memory, so its keys should be unique (see --on-duplicate). The second file is streamed from disk for --join=inner and --join=right (see --strict); keys that repeat in it each produce an output row. Rows with a missing key (empty, NA) never match
 
 Options:
-  -c, --column <COLUMN>  Column name to merge on
-  -j, --join <JOIN>      Join type [default: inner] [possible values: inner, outer, left, right]
-      --c2 <C2>          Column name to merge on for second file, if different
-      --d1 <D1>          Delimiter for CSV file reading and writing [default: auto]
-      --d2 <D2>          Delimiter for the second CSV file [default: auto]
-  -f, --fill <FILL>      Fill string for missing values in unmatched rows (left, right, outer joins) [default: ""]
-  -o, --output <OUTPUT>  CSV file to write (will be gzipped if filename ends with .gz) [default: stdout]
-  -h, --help             Print help
+  -c, --column <COLUMN>              Column name to merge on
+  -j, --join <JOIN>                  Join type [default: inner] [possible values: inner, outer, left, right]
+      --c2 <C2>                      Column name to merge on for second file, if different
+      --on-duplicate <ON_DUPLICATE>  What to do if a key is repeated in the first file: error, or keep only the first or last row for that key (the kept row stays in the position of the first) [default: error] [possible values: error, first, last]
+      --strict                       Load both files into memory and apply --on-duplicate to the second file as well as the first
+      --d1 <D1>                      Delimiter for CSV file reading and writing [default: auto]
+      --d2 <D2>                      Delimiter for the second CSV file [default: auto]
+  -f, --fill <FILL>                  Fill string for missing values in unmatched rows (left, right, outer joins) [default: ""]
+  -o, --output <OUTPUT>              CSV file to write (will be gzipped if filename ends with .gz) [default: stdout]
+  -h, --help                         Print help
 ```
 
 ```

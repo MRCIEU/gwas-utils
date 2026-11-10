@@ -279,3 +279,100 @@ fn lambda_skips_missing_values_but_errors_on_garbage() {
     let out = gu(&[&"csv", &"stats", &"lambda", &bad, &"-d", &","]);
     assert!(!out.status.success());
 }
+
+// --- merge ---
+
+#[test]
+fn merge_errors_on_duplicate_keys_in_first_file_by_default() {
+    let dir = TempDir::new();
+    let f1 = dir.write("f1.csv", "ID,A\nx,1\nx,2\n");
+    let f2 = dir.write("f2.csv", "ID,B\nx,9\n");
+    let output = dir.path("out.csv");
+
+    let out = gu(&[&"csv", &"merge", &f1, &f2, &"-c", &"ID", &"-o", &output]);
+    assert!(!out.status.success());
+    let err = stderr(&out);
+    assert!(
+        err.contains("Duplicate key \"x\"") && err.contains("--on-duplicate"),
+        "{err}"
+    );
+    assert!(!output.exists(), "output file should not have been created");
+}
+
+#[test]
+fn merge_on_duplicate_first_and_last() {
+    let dir = TempDir::new();
+    let f1 = dir.write("f1.csv", "ID,A\nx,1\nx,2\n");
+    let f2 = dir.write("f2.csv", "ID,B\nx,9\n");
+
+    let out = gu(&[
+        &"csv",
+        &"merge",
+        &f1,
+        &f2,
+        &"-c",
+        &"ID",
+        &"--on-duplicate",
+        &"first",
+    ]);
+    assert!(out.status.success(), "{}", stderr(&out));
+    assert_eq!(stdout(&out), "ID,A,B\nx,1,9\n");
+
+    let out = gu(&[
+        &"csv",
+        &"merge",
+        &f1,
+        &f2,
+        &"-c",
+        &"ID",
+        &"--on-duplicate",
+        &"last",
+    ]);
+    assert!(out.status.success(), "{}", stderr(&out));
+    assert_eq!(stdout(&out), "ID,A,B\nx,2,9\n");
+}
+
+#[test]
+fn merge_repeated_keys_in_second_file_expand_unless_strict() {
+    let dir = TempDir::new();
+    let f1 = dir.write("f1.csv", "ID,A\nx,1\n");
+    let f2 = dir.write("f2.csv", "ID,B\nx,8\nx,9\n");
+
+    let out = gu(&[&"csv", &"merge", &f1, &f2, &"-c", &"ID"]);
+    assert!(out.status.success(), "{}", stderr(&out));
+    assert_eq!(stdout(&out), "ID,A,B\nx,1,8\nx,1,9\n");
+
+    // --strict checks the second file too
+    let out = gu(&[&"csv", &"merge", &f1, &f2, &"-c", &"ID", &"--strict"]);
+    assert!(!out.status.success());
+    assert!(stderr(&out).contains("second file"), "{}", stderr(&out));
+
+    let out = gu(&[
+        &"csv",
+        &"merge",
+        &f1,
+        &f2,
+        &"-c",
+        &"ID",
+        &"--strict",
+        &"--on-duplicate",
+        &"last",
+    ]);
+    assert!(out.status.success(), "{}", stderr(&out));
+    assert_eq!(stdout(&out), "ID,A,B\nx,1,9\n");
+}
+
+#[test]
+fn merge_works_on_gzipped_inputs_and_outputs() {
+    let dir = TempDir::new();
+    let f1 = dir.path("f1.csv.gz");
+    fs::write(&f1, gzip("ID,A\nx,1\ny,2\n")).unwrap();
+    let f2 = dir.write("f2.csv", "ID,B\ny,9\nz,8\n");
+    let output = dir.path("out.csv.gz");
+
+    let out = gu(&[
+        &"csv", &"merge", &f1, &f2, &"-c", &"ID", &"-j", &"outer", &"-f", &"NA", &"-o", &output,
+    ]);
+    assert!(out.status.success(), "{}", stderr(&out));
+    assert_eq!(gunzip_all(&output), "ID,A,B\nx,1,NA\ny,2,9\nz,NA,8\n");
+}
