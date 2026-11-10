@@ -1,0 +1,5 @@
+# Keep the build context small: none of this is needed to build the image
+target
+.git
+.github
+testdata
