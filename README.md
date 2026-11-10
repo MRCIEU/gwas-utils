@@ -226,7 +226,7 @@ Arguments:
   [INPUT]  CSV file to process (can be gzipped if filename ends with .gz) [default: stdin]
 
 Options:
-  -l, --list <LIST>...        New header to write (format: list of strings corresponding to new columm names)
+  -l, --list <LIST>...        New header to write (format: list of strings corresponding to new column names)
   -c, --columns <COLUMNS>...  Specific columns to rename (format: oldcolumn=newcolumn for arbitrary number of columns)
   -d, --delim <DELIM>         Delimiter for CSV file reading and writing [default: auto]
   -o, --output <OUTPUT>       CSV file to write (will be gzipped if filename ends with .gz) [default: stdout]

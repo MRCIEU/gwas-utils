@@ -868,3 +868,91 @@ fn tsv_with_commas_in_a_text_column_is_read_as_tsv() {
     assert!(out.status.success(), "{}", stderr(&out));
     assert_eq!(stdout(&out), "ID\tV\na\t1\nb\t2\nc\t3\n");
 }
+
+// --- commands asked to do nothing fail instead of passing the file through ---
+
+#[test]
+fn commands_with_nothing_to_do_fail_rather_than_pass_the_file_through() {
+    let dir = TempDir::new();
+    let input = dir.write("data.csv", SUMSTATS);
+
+    for cmd in ["select", "filter", "reheader"] {
+        let out = gu(&[&"csv", &cmd, &input]);
+        assert!(!out.status.success(), "{cmd} should fail");
+        assert_eq!(stdout(&out), "", "{cmd} should write nothing");
+    }
+}
+
+// --- reheader details ---
+
+#[test]
+fn reheader_rename_ignores_whitespace_around_equals() {
+    let dir = TempDir::new();
+    let input = dir.write("data.csv", "A,B,C\n1,2,3\n");
+
+    let out = gu(&[&"csv", &"reheader", &input, &"-c", &"B = BETA", &"C =SE"]);
+    assert!(out.status.success(), "{}", stderr(&out));
+    assert_eq!(stdout(&out), "A,BETA,SE\n1,2,3\n");
+}
+
+#[test]
+fn reheader_rejects_a_column_renamed_twice() {
+    let dir = TempDir::new();
+    let input = dir.write("data.csv", "A,B\n1,2\n");
+
+    let out = gu(&[&"csv", &"reheader", &input, &"-c", &"A=X", &"A=Y"]);
+    assert!(!out.status.success());
+    assert!(stderr(&out).contains("more than once"), "{}", stderr(&out));
+    assert_eq!(stdout(&out), "");
+}
+
+// --- make_dxfuse_manifest errors ---
+
+#[test]
+fn make_dxfuse_manifest_requires_file_ids() {
+    let dir = TempDir::new();
+    let output = dir.path("manifest.json");
+
+    // -f is required
+    let out = gu(&[
+        &"dn",
+        &"make_dxfuse_manifest",
+        &"-p",
+        &"project-xxxx",
+        &"-o",
+        &output,
+    ]);
+    assert!(!out.status.success());
+
+    // ...and so is at least one input that actually contains a file ID
+    let out = gu(&[
+        &"dn",
+        &"make_dxfuse_manifest",
+        &"-f",
+        &"junk",
+        &"-p",
+        &"project-xxxx",
+        &"-o",
+        &output,
+    ]);
+    assert!(!out.status.success());
+    assert!(stderr(&out).contains("file ID"), "{}", stderr(&out));
+    assert!(!output.exists(), "no manifest should be written");
+}
+
+#[test]
+fn make_dxfuse_manifest_warns_about_inputs_without_a_file_id() {
+    let out = gu(&[
+        &"dn",
+        &"make_dxfuse_manifest",
+        &"-f",
+        &"junk",
+        &"file-FxY5660JkF6BB3Jq9680pjq5",
+        &"-p",
+        &"project-xxxx",
+    ]);
+    assert!(out.status.success(), "{}", stderr(&out));
+    assert!(stderr(&out).contains("junk"), "{}", stderr(&out));
+    let manifest: serde_json::Value = serde_json::from_str(&stdout(&out)).unwrap();
+    assert_eq!(manifest["Files"].as_array().unwrap().len(), 1);
+}
